@@ -1,0 +1,6 @@
+/* init.txt */
+rcar = 5
+phyd = 3
+kuhn = 1
+k_on = 1e-1
+k_of = 1e-2

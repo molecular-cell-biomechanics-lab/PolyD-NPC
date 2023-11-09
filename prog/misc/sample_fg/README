@@ -1,0 +1,10 @@
+bd_v3.4.2/misc/sample_fg
+
+sample fg-nups configuation for spacing measure etc
+
+caution:
+env.h is copied in the current directory
+
+log:
+12/19/2022
+created based on equiv

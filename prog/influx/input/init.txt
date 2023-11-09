@@ -1,0 +1,8 @@
+/* init.txt */
+pore = 40
+rcar = 1
+phyd = 0
+kuhn = 1
+k_on = 1e-1
+k_of = 1e-2
+temp = 310.15

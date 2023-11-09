@@ -1,0 +1,30 @@
+How to visualize pore scafold by Paraview version 5.9.0
+
+1. 	import bd_v3.4.2/anlys/vtk/pore_bcs.vtk
+
+2. 	Clip
+	- Clip Type: Cylinder
+	- Center: 	(0,0,20)
+	- Axis: 	(0,0,1)
+	- Radius: 	20 (= R_pore)
+	- Invert: 	uncheck
+
+
+
+Other:
+
+mesh screen shot
+	- fg.vtk > Glyph: color = #007fb1 to #c9bc9c
+	  orientation, scale = no array
+	- clip (front): opacity 0.15
+	- clip (top  ): opacity 0.5
+	- screenshot: 1012 * 1348
+
+trajectory screen shot
+	- fg.vtk: line width = 1, color = #007fb1
+	- fg.vtk > Glyph: color = #007fb1 to #c9bc9c
+	  orientation, scale = no array
+	- cg_ctr.vtk > pathline: line width = 5
+	- animation: sequence, no.frames = 335 (oridinal is 670)
+	- screenshot: 2000 * 2488
+

@@ -1,0 +1,10 @@
+bd_v3.4.2/influx
+
+log:
+03/12/2023
+same as ffs except 
+- src/input/
+- src/param.cpp -> path_input
+- exe/jobscript.sh
+
+

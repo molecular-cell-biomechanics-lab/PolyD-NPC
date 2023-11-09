@@ -1,0 +1,2 @@
+/* grid.txt */
+grid_dim = 5.0 	// dimension (size) of a gird		(nm)
