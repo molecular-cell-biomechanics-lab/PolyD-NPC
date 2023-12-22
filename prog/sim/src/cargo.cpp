@@ -104,6 +104,84 @@ void _cargo::set_beads_asc
 	return;
 }
 
+
+
+void _cargo::set_beads_asc_vtx
+// --------------------------------------------------------------------
+//
+// Function: Input for vertex format file
+// 
+(
+	const char 	*ifs_name
+)
+// --------------------------------------------------------------------
+{
+	int N_bead, N_vtx;
+	double x, y, z;
+	double val;
+	int dum;
+	int a, b, c;
+	int tmp_i;
+
+	std::ifstream ifs(ifs_name);
+	std::string str;
+
+	if(ifs.fail()){ std::cerr << ifs_name << " do not exist\n"; exit(0); }
+
+	for( int i=0; i<1; i++ ) std::getline(ifs, str); // skip 1 line
+	std::getline(ifs, str); std::sscanf( str.data(), "%lf %lf %lf", &x, &y, &z );
+	center = _vec<double>(x, y, z);
+	
+	for( int i=0; i<2; i++ ) std::getline(ifs, str); // skip 2 line
+	std::getline(ifs, str); std::sscanf( str.data(), "POINTS %d float", &N_bead );
+	for( int i=0; i<N_bead; i++ ){
+		std::getline(ifs, str); std::sscanf( str.data(), "%lf\t%lf\t%lf", &x, &y, &z );
+		_vec<double> tmp(x, y, z);
+		pos.push_back( tmp );
+		ori.push_back( tmp - center );
+		ori_0 = ori;
+	}
+
+	std::getline(ifs, str); std::sscanf( str.data(), "VERTICES %d %d", &N_vtx, &dum );
+	for( int i=0; i<N_vtx; i++ ) std::getline(ifs, str); // skip N_vtx lines
+
+	int count = 0;
+	for( int i=0; i<3; i++ ) std::getline(ifs, str); // skip 3 lines
+	for( int i=0; i<N_bead; i++ ){
+		std::getline(ifs, str); std::sscanf( str.data(), "%lf", &val );
+		if( val != 0.0 ){
+			hyd_id.push_back(i);
+			hyd.push_back(val);
+			hyd_inv_id.push_back(count);
+			count ++;
+		}else{
+			hyd_inv_id.push_back(-1);
+		}
+	}
+
+	for( int i=0; i<2; i++ ) std::getline(ifs, str); // skip 2 lines
+	for( int i=0; i<N_bead; i++ ){
+		std::getline(ifs, str); std::sscanf( str.data(), "%d", &tmp_i );
+		if( hyd_inv_id[i] != -1 ){
+			pair_fg.push_back(tmp_i);
+		}
+	}
+
+	for( int i=0; i<1; i++ ) std::getline(ifs, str); // skip 1 lines
+	for( int i=0; i<N_bead; i++ ){
+		std::getline(ifs, str); std::sscanf( str.data(), "%lf\t%lf\t%lf", &x, &y, &z );
+		_vec<double> tmp(x, y, z);
+		frc.push_back(tmp);
+	}
+
+
+	_beads::init_pair();
+	// std::cout << "finished setting " << pos.size() << " beads from " << ifs_name << std::endl;
+
+	return;
+}
+
+
 void _cargo::set_beads_bin
 // --------------------------------------------------------------------
 //
@@ -207,7 +285,9 @@ void _cargo::set_beads
 )
 // --------------------------------------------------------------------
 {
-	_cargo::set_beads_bin(ifs_name);
+	// _cargo::set_beads_bin(ifs_name);
+	// _cargo::set_beads_asc(ifs_name);
+	_cargo::set_beads_asc_vtx(ifs_name);
 	return;
 }
 
@@ -226,7 +306,8 @@ void _cargo::set_beads
 // --------------------------------------------------------------------
 {
 	// set_beads_asc(ifs_name);
-	set_beads_bin(ifs_name);
+	// set_beads_bin(ifs_name);
+	set_beads_asc_vtx(ifs_name);
 	set_center(x,y,z);
 	return;
 }
@@ -1086,6 +1167,72 @@ void _cargo::output_asc
 	return;
 }
 
+void _cargo::output_asc_vtx
+// --------------------------------------------------------------------
+//
+// Function: for vertex format file
+// 
+(
+	const char 	*ofs_name_in
+)
+// --------------------------------------------------------------------
+{
+	char ofs_name[128];
+	sprintf( ofs_name, "%s_vtx.vtk", ofs_name_in );
+
+	FILE *f_out;
+	f_out = fopen( ofs_name, "w" );
+	if( f_out == NULL ){
+		std::cout << "\x1b[31m" << 
+		"ERROR: cannot open " << ofs_name <<"\x1b[349" << std::endl;
+		exit(1);
+	}
+
+	fprintf( f_out, "# vtk DataFile Version 2.0\n" );
+	fprintf( f_out, "%lf %lf %lf\n", center.x, center.y, center.z );
+	fprintf( f_out, "ASCII\n" );
+	fprintf( f_out, "DATASET POLYDATA\n" );
+	fprintf( f_out, "POINTS %lu float\n", pos.size() );
+	for( int i=0; i<pos.size(); i++ ){
+		fprintf( f_out, "%lf %lf %lf\n", pos[i].x, pos[i].y, pos[i].z );
+	}
+
+	fprintf( f_out, "VERTICES %lu %lu\n", pos.size(), 2*pos.size() );
+	for( int i=0; i<pos.size(); i++ ){
+		fprintf( f_out, "1 %d\n", i );
+	}
+
+	fprintf( f_out, "POINT_DATA %lu\n", pos.size() );
+	fprintf( f_out, "SCALARS hyd float\n" );
+	fprintf( f_out, "LOOKUP_TABLE default\n" );
+	for( int i=0; i<pos.size(); i++ ){
+		if( hyd_inv_id[i] == -1){
+			fprintf( f_out, "%lf\n", 0.0 );
+		}else{
+			fprintf( f_out, "%lf\n", hyd[hyd_inv_id[i]] );
+		}
+	}
+
+	fprintf( f_out, "SCALARS state int\n" );
+	fprintf( f_out, "LOOKUP_TABLE default\n" );
+	for( int i=0; i<pos.size(); i++ ){
+		if( hyd_inv_id[i] == -1){
+			fprintf( f_out, "%d\n", -1 );
+		}else{
+			fprintf( f_out, "%d\n", pair_fg[hyd_inv_id[i]] );
+		}
+	}
+
+	/* force output is in the unit of pN */
+	fprintf( f_out, "VECTORS frc float\n" );
+	for( int i=0; i<pos.size(); i++ ){
+		fprintf( f_out, "%lf %lf %lf\n", frc[i].x * FRC_PN, frc[i].y * FRC_PN, frc[i].z * FRC_PN );
+	}
+
+	fclose(f_out);
+	return;
+}
+
 
 void _cargo::output_bin
 // --------------------------------------------------------------------
@@ -1258,8 +1405,9 @@ void _cargo::output
 )
 // --------------------------------------------------------------------
 {
-	output_bin(ofs_name);
+	// output_bin(ofs_name);
 	// output_asc(ofs_name);
+	output_asc_vtx(ofs_name);
 	output_ctr(ofs_name);
 }
 

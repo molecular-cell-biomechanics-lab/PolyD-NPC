@@ -365,6 +365,7 @@ void _beads::set_beads
 // }
 
 
+
 void _beads::set_beads_asc
 // --------------------------------------------------------------------
 //
@@ -519,7 +520,8 @@ void _beads::set_beads
 )
 // --------------------------------------------------------------------
 {
-	_beads::set_beads_bin(ifs_name);
+	_beads::set_beads_asc(ifs_name);
+	// _beads::set_beads_bin(ifs_name);
 	return;
 }
 
@@ -2027,7 +2029,8 @@ void _beads::output
 )
 // --------------------------------------------------------------------
 {
-	_beads::output_bin(ofs_name_in);
+	// _beads::output_bin(ofs_name_in);
+	_beads::output_asc(ofs_name_in);
 }
 
 

@@ -331,8 +331,8 @@ void _fgnup::set_beads
 )
 // --------------------------------------------------------------------
 {
-	_fgnup::set_beads_bin(ifs_name);
-	// _fgnup::set_beads_asc(ifs_name);
+	// _fgnup::set_beads_bin(ifs_name);
+	_fgnup::set_beads_asc(ifs_name);
 	return;
 }
 
@@ -968,8 +968,8 @@ void _fgnup::output
 )
 // --------------------------------------------------------------------
 {
-	// _fgnup::output_asc(ofs_name_in);
-	_fgnup::output_bin(ofs_name_in);
+	_fgnup::output_asc(ofs_name_in);
+	// _fgnup::output_bin(ofs_name_in);
 	return;
 }
 

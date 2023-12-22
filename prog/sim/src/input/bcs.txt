@@ -1,6 +1,6 @@
 /* bcs.txt */
-R_pore = 20.0 		// 		(nm)
-cy_top = 40.0 		// 		(nm)
+R_pore = 25.0 		// 		(nm)
+cy_top = 20.0 		// 		(nm)
 cy_btm = 0.0		// 		(nm)
 L_x    = 50.0 		// 		(nm)
 L_y    = 50.0 		// 		(nm)
