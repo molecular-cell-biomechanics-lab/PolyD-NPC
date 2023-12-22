@@ -1,0 +1,6 @@
+/* init.txt */
+D_por = 50
+leng  = 209
+N_lyr = 5
+d_lyr = 4
+temp  = 310.15
