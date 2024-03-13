@@ -23,16 +23,11 @@ class _grid;
 
 // Macro definition ===========================================================================
 
-#define MARGIN				1.0		// list margin (nm)
+#define MARGIN				2.0		// list margin (nm)
 #define EQUIV_STEP			100
-#define PAIR_RESERVE 		80		// size of pair_list capacity 
-#define FRC_FG_CONST_PN		10 		// constant force to add for FG-FG {pN}
-
-// #define FG_FREE 	1 	// state index of hyd beads (1:free, 2:interacting)
-// #define FG_BOUND 	2	// state index of hyd beads (1:free, 2:interacting)
-
-#define FG_PAIR_SHIFT 	1000000		// index shift for cross-reffering system
-
+#define PAIR_RESERVE 		200		// size of pair_list capacity
+#define ADJ_AUTO_RESERVE 	345696	// size of hyd_adj capacity
+#define ADJ_CROS_RESERVE 	17472	// size of hyd_adj_cross capacity
 
 
 class _bcs;
@@ -49,11 +44,15 @@ public:
 	std::vector<double>		   hyd;			// hydrophobic factor
 	std::vector<int>		   hyd_id;		// index of hydrophobic beads 	   (hyd id -> bead id)
 	std::vector<int>		   hyd_inv_id;	// inverse id of hydrophobic beads (bead id -> hyd id)
-	// std::vector<int>		   hyd_state;	// state index of hyd beads (1:free, 2:interacting)
+
+	std::vector<int>		   			hyd_state;		// number of interacting beads
+	std::vector<bool> 		   			hyd_adj; 		// adjacent matrix for fg-fg (0: free, 1: interacting)
+	std::vector< std::vector<bool> > 	hyd_adj_cross; 	// adjacent matrix for fg-fg (0: free, 1: interacting)
 	
 	std::vector< std::vector<int> > 				auto_pair_rp;	// pair list
+	std::vector< std::vector<int> > 				auto_pair_fg;	// pair list (hyd id -> bead id)
 	std::vector< std::vector< std::vector<int> > >  cross_pair_rp; 	// pair list
-	std::vector<int> 								pair_fg; 		// pair list (hyd id -> hyd id)
+	std::vector< std::vector< std::vector<int> > >  cross_pair_fg; 	// pair list
 
 	std::vector<std::vector<int> > binned_beads; 	// list of beads in a grid
 
@@ -74,13 +73,13 @@ public:
 	double 	eps_rp	;		// height of repulsion potential 					{kBT_0}
 	double 	sgm_rp	;		// characteristic length of repulsion potential 	{segm}
 	double 	cut_rp	;		// cutoff distance of repulsion potential 			(nm)
+	double 	sft_rp	;		// shift parameter making the soft-core 			(-)
 
 	/* hydrophobic  */
 	double 	eps_fg	;		// interfacial energy of hydrophobic attraction 	{kBT_0}
 	double 	sgm_fg	;		// characteristic length of hydrophobic attraction 	{segm}
 	double 	cut_fg	;		// cutoff distance of hydrophobic attraction 		{segm}
-	double 	kon_fg	;		// on  rate of hydrophobic attraction 				(/ns)
-	double 	kof_fg	;		// on  rate of hydrophobic attraction 				(/ns)
+	double 	sft_fg	;		// shift parameter making the soft-core 			(-)
 
 	double 	cut_rp_2;		// squre of the cutoff distnace (replsion)
 	double 	cut_fg_2;		// squre of the cutoff distnace (hydrophobic)
@@ -89,12 +88,7 @@ public:
 	double 	cut_rp_list_2;	// squre of the cutoff distnace for listing (replsion)
 	double 	cut_fg_list_2;	// squre of the cutoff distnace for listing (hydrophobic)
 
-	double 	kon_fg_t; 		// kon_fg * dt_sample
-	double 	kof_fg_t; 		// kof_fg * dt_sample
-	double 	frc_fg_const; 	// constant fg-fg interaction force
-
 	int 	seed;
-
 
 	double 	coeff_ex; 		// coefficient of the external force
 	double 	rand_std; 		// deviation of the random force (normalized for uniform dist)	
@@ -142,9 +136,17 @@ public:
 	void move();
 	void move( _bcs &bcs );
 
+	void make_hyd_adj();
+	void make_hyd_adj( _bcs	&bcs );
+	void make_hyd_adj( _bcs	&bcs, _beads &o_beads_0 );
+
+	void calc_hyd_state();
+	void calc_hyd_state( _beads &o_beads_0 );	
+
 	void output			 ( const char *ofs_name );
 	void output_asc		 ( const char *ofs_name );
 	void output_bin		 ( const char *ofs_name );
+	void output_adj 	 ( const char *ofs_name );
 	void print_auto_list ( const char *ofs_name );
 	void print_cross_list( const char *ofs_name );
 
@@ -188,8 +190,23 @@ protected:
 	_vec<double> rp_force( double dist_2, _vec<double> dr );
 	_vec<double> fg_force( double dist_2, _vec<double> dr, double prod_hyd );
 
-	double 	k_roll();
-	bool 	find_elem( std::vector<int> arr, int elm );
+	void set_hyd_adj();
+	void set_hyd_adj( int o_beads_size, int cross_id );
+
+	void init_hyd_adj_auto();
+	void init_hyd_adj_cross( int o_beads_size, int cross_id );
+
+	void make_hyd_adj_auto ();
+	void make_hyd_adj_auto ( _bcs &bcs );
+	void make_hyd_adj_cross( _bcs &bcs, _beads &o_beads, int cross_id );
+
+	void init_hyd_state();
+	void calc_hyd_state_auto();
+	void calc_hyd_state_cross( _beads &o_beads, int cross_id );
+
+
+	// double 	k_roll();
+	// bool 	find_elem( std::vector<int> arr, int elm );
 
 
 private:

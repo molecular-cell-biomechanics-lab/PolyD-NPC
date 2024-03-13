@@ -12,29 +12,12 @@
 #include "vec.h"
 #include "grid.h"
 
-
-// static double 	cut_rp_2;		// squre of the cutoff distnace (replsion)
-// static double 	cut_fg_2;		// squre of the cutoff distnace (hydrophobic)
-// static double 	cut_rp_list_2;	// squre of the cutoff distnace for listing (replsion)
-// static double 	cut_fg_list_2;	// squre of the cutoff distnace for listing (hydrophobic)
-
-// static double 	cut_rp_list; 	// cutoff distance + list margin
-// static double 	cut_fg_list; 	// cutoff distance + list margin
-// static double 	cut_rp_list_2; 	// square of the cut_rp_list
-// static double 	cut_fg_list_2; 	// square of the cut_fg_list
-
-static double 	coeff_rp;		// coefficient of repulsive force
-static double 	shift_rp;		// shifting constatnt of replsive force
-// static double 	coeff_fg;		// coefficient of hydrophobic force
-// static double 	shift_fg;		// shifting constatnt of hydrophobic force
-
-// static double 	coeff_ex; 		// coefficient of the external force
-// static double 	rand_std; 		// deviation of the random force (normalized for uniform dist)
-
-// static double 	kon_fg_t; 		// kon_fg * dt_sample
-// static double 	kof_fg_t; 		// kof_fg * dt_sample
-// static double 	frc_fg_const; 	// constant fg-fg interaction force
-
+static double 	coef_rp_12;		// coefficient of repulsive force
+static double 	coef_rp_6 ;		// coefficient of repulsive force
+static double 	coef_fg_12;		// coefficient of hydrophbc force
+static double 	coef_fg_6 ;		// coefficient of hydrophbc force
+static double 	a_shift_rp;		// coefficient of repulsive force
+static double 	a_shift_fg;		// coefficient of hydrophbc force
 
 // std::mt19937 							mt   (RANDSEED) ; 	// random number generator
 std::mt19937 							mt; 				// random number generator
@@ -51,14 +34,12 @@ void _beads::read_vars
 )
 // --------------------------------------------------------------------
 {
-
 	char ifs_name[64];
 	sprintf( ifs_name, "%s/%s", PATH_INPUT, "beads.txt" );
 	std::ifstream ifs(ifs_name);
 	std::string str;
 
 	if(ifs.fail()){ std::cerr << ifs_name << " do not exist\n"; exit(0); }
-
 
 	std::getline(ifs, str); // skip 1 line
 	std::getline(ifs, str); std::sscanf( str.data(), "l_segm = %lf", &l_segm );
@@ -70,16 +51,19 @@ void _beads::read_vars
 	std::getline(ifs, str); std::sscanf( str.data(), "eps_rp = %lf", &eps_rp );
 	std::getline(ifs, str); std::sscanf( str.data(), "sgm_rp = %lf", &sgm_rp );
 	std::getline(ifs, str); std::sscanf( str.data(), "cut_rp = %lf", &cut_rp );
-	std::getline(ifs, str); // eps_fg (not used)
-	std::getline(ifs, str); // sgm_fg (not used)
+	std::getline(ifs, str); std::sscanf( str.data(), "sft_rp = %lf", &sft_rp );
+	std::getline(ifs, str); std::sscanf( str.data(), "eps_fg = %lf", &eps_fg );
+	std::getline(ifs, str); std::sscanf( str.data(), "sgm_fg = %lf", &sgm_fg );
 	std::getline(ifs, str); std::sscanf( str.data(), "cut_fg = %lf", &cut_fg );
-	std::getline(ifs, str); std::sscanf( str.data(), "kon_fg = %lf", &kon_fg );
-	std::getline(ifs, str); std::sscanf( str.data(), "kof_fg = %lf", &kof_fg );
+	std::getline(ifs, str); std::sscanf( str.data(), "sft_fg = %lf", &sft_fg );
 
-	return;
+	if( abs(cut_rp - pow(2-sft_rp, 1.0/6.0)) > 0.001 ){
+		std::cout << "\x1b[31m" << "ERROR: steric cutoff is not at the bottom" << std::endl;
+		std::cout << "cut_rp = " << cut_rp << ", (2-sft_rp)^(1/6) = " << pow(2-sft_rp, 1.0/6.0)
+		<<"\x1b[349" << std::endl;
+		exit(1);
+	}
 }
-
-
 
 
 
@@ -92,31 +76,27 @@ void _beads::calc_vars
 )
 // --------------------------------------------------------------------
 {
-
 	// unit conversion
 	h_visc = h_visc * 1e-18			;	// {mPa s} = {g /m /s} -> (g /nm /ns)
 	r_stks = r_stks * l_segm 		; 	// {segm}  -> (nm)
 	eps_rp = eps_rp * KBT_0			;	// {kBT_0} -> (nm2 g /ns2)
 	sgm_rp = sgm_rp * l_segm		;	// {segm}  -> (nm)
 	cut_rp = cut_rp * l_segm		;	// {segm}  -> (nm)
-	// eps_fg = eps_fg * KBT_0		;	// {kBT_0} -> (nm2 g /ns2)
-	// sgm_fg = sgm_fg * l_segm		;	// {segm}  -> (nm)
+	eps_fg = eps_fg * KBT_0 		;	// {kBT_0} -> (nm2 g /ns2)
+	sgm_fg = sgm_fg * l_segm		;	// {segm}  -> (nm)
 	cut_fg = cut_fg * l_segm		;	// {segm}  -> (nm)
-
-	frc_fg_const = FRC_FG_CONST_PN / FRC_PN; 	// {pN} -> (g nm /ns2)
 
 	// calculation of class variables
 	D_diff = K_BOLTZ * T_body / 6.0 / PI / h_visc / r_stks; 	// (nm2 / ns)
-	// std::cout << 6*PI*h_visc*r_stks << std::endl;
 
 	// this->cut_list = std::max( this->cut_rp, this->cut_fg );
 	// this->cut_list += MARGIN;
 
-	cut_rp_list = cut_rp + MARGIN;
-	// cut_fg_list = cut_fg + MARGIN;
-	cut_fg_list = cut_fg; 	// new version
+	// std::cout << D_diff << std::endl;
+	// exit(1);
 
-	return;
+	cut_rp_list = cut_rp + MARGIN;
+	cut_fg_list = cut_fg + MARGIN;
 }
 
 
@@ -129,31 +109,27 @@ void _beads::calc_static
 )
 // --------------------------------------------------------------------
 {
-
 	cut_rp_2 = cut_rp * cut_rp;
 	cut_fg_2 = cut_fg * cut_fg;
 
 	cut_rp_list_2 = cut_rp_list * cut_rp_list;
 	cut_fg_list_2 = cut_fg_list * cut_fg_list;
 
-	coeff_rp = eps_rp / sgm_rp;
-	shift_rp = -coeff_rp * exp( -cut_rp / sgm_rp );
+	coef_rp_12 =  48.0 * eps_rp * pow(sgm_rp, 12.0);
+	coef_rp_6  = -24.0 * eps_rp * pow(sgm_rp,  6.0);
 
-	// coeff_fg = -this->eps_fg / this->sgm_fg * exp( this->cut_rp / this->sgm_fg );
-	// shift_fg = coeff_fg * exp( -this->cut_fg / this->sgm_fg );
+	coef_fg_12 =  48.0 * eps_fg * pow(sgm_fg, 12.0);
+	coef_fg_6  = -24.0 * eps_fg * pow(sgm_fg,  6.0);
 
-	// coef_rp_6  = 24.0 * eps_rp * pow(sgm_rp, 6.0);
-	// coef_rp_12 = 48.0 * eps_rp * pow(sgm_rp,12.0);
-
-	// coeff_fg = -eps_fg / sgm_fg * exp(1.0);
+	a_shift_rp = sft_rp * pow(sgm_rp, 6.0);
+	a_shift_fg = sft_fg * pow(sgm_fg, 6.0);
 
 	coeff_ex = D_diff / K_BOLTZ / T_body * t_delt;
 	rand_std = sqrt(3) * sqrt( 2 * D_diff * t_delt);
 
-	kon_fg_t = kon_fg * t_delt * LIST_STEP;
-	kof_fg_t = kof_fg * t_delt * LIST_STEP;
-
-	return;
+	// std::cout << "rand_std = " << rand_std << std::endl;
+	// std::cout << "coeff_ex = " << coeff_ex << std::endl;
+	// exit(1);
 }
 
 
@@ -166,7 +142,6 @@ void _beads::display_vars
 )
 // --------------------------------------------------------------------
 {
-
     std::cout << "\x1b[34m"	 << std::endl;
 
 	std::cout << "l_segm = " << l_segm << std::endl;
@@ -180,16 +155,14 @@ void _beads::display_vars
 	std::cout << "eps_rp = " << eps_rp << std::endl;
 	std::cout << "sgm_rp = " << sgm_rp << std::endl;
 	std::cout << "cut_rp = " << cut_rp << std::endl;
+	std::cout << "sft_rp = " << sft_rp << std::endl;
 	
 	std::cout << "eps_fg = " << eps_fg << std::endl;
 	std::cout << "sgm_fg = " << sgm_fg << std::endl;
 	std::cout << "cut_fg = " << cut_fg << std::endl;
-	std::cout << "kon_fg = " << kon_fg << std::endl;
-	std::cout << "kof_fg = " << kof_fg << std::endl;
+	std::cout << "sft_fg = " << sft_fg << std::endl;
 	
     std::cout << "\x1b[39m"	<< std::endl;
-    return;
-
 }
 
 void _beads::init_rand
@@ -365,7 +338,6 @@ void _beads::set_beads
 // }
 
 
-
 void _beads::set_beads_asc
 // --------------------------------------------------------------------
 //
@@ -418,7 +390,7 @@ void _beads::set_beads_asc
 	for( int i=0; i<N_bead; i++ ){
 		std::getline(ifs, str); std::sscanf( str.data(), "%d", &tmp_i );
 		if( hyd_inv_id[i] != -1 ){
-			pair_fg.push_back(tmp_i);
+			hyd_state.push_back(tmp_i);
 		}
 	}
 
@@ -431,8 +403,6 @@ void _beads::set_beads_asc
 
 	init_pair();
 	// std::cout << "finished setting " << pos.size() << " beads from " << ifs_name << std::endl;
-
-	return;
 }
 
 
@@ -489,7 +459,7 @@ void _beads::set_beads_bin
 	for( int i=0; i<N_bead; i++ ){
 		ifs.read((char *) &tmp_i, sizeof(int)); SwapEnd(tmp_i);
 		if( hyd_inv_id[i] != -1 ){
-			pair_fg.push_back(tmp_i);
+			hyd_state.push_back(tmp_i);
 		}
 	}
 
@@ -505,8 +475,6 @@ void _beads::set_beads_bin
 
 	init_pair();
 	// std::cout << "finished setting " << pos.size() << " beads from " << ifs_name << std::endl;
-
-	return;
 }
 
 
@@ -520,8 +488,7 @@ void _beads::set_beads
 )
 // --------------------------------------------------------------------
 {
-	_beads::set_beads_asc(ifs_name);
-	// _beads::set_beads_bin(ifs_name);
+	_beads::set_beads_bin(ifs_name);
 	return;
 }
 
@@ -539,14 +506,10 @@ void _beads::init_pair
 		auto_pair_rp.push_back(std::vector<int>());
 		auto_pair_rp[i].reserve(PAIR_RESERVE);
 	}
-	// for( int i=0; i<hyd.size(); i++ ){
-	// 	auto_pair_fg.push_back(std::vector<int>());
-	// 	auto_pair_fg[i].reserve(PAIR_RESERVE);
-	// }
-
-	// for( int i=0; i<hyd.size(); i++ ){
-	// 	pair_fg.push_back(-1);
-	// }
+	for( int i=0; i<hyd.size(); i++ ){
+		auto_pair_fg.push_back(std::vector<int>());
+		auto_pair_fg[i].reserve(PAIR_RESERVE);
+	}
 
 	// cross_pair
 	for( int n=0; n<cross_pair_rp.size(); n++ ){
@@ -554,13 +517,11 @@ void _beads::init_pair
 			cross_pair_rp[n].push_back(std::vector<int>());
 			cross_pair_rp[n][i].reserve(PAIR_RESERVE);
 		}
-		// for( int i=0; i<hyd.size(); i++ ){
-		// 	cross_pair_fg[n].push_back(std::vector<int>());
-		// 	cross_pair_fg[n][i].reserve(PAIR_RESERVE);
-		// }
+		for( int i=0; i<hyd.size(); i++ ){
+			cross_pair_fg[n].push_back(std::vector<int>());
+			cross_pair_fg[n][i].reserve(PAIR_RESERVE);
+		}
 	}
-
-	return;
 }
 
 
@@ -573,7 +534,7 @@ void _beads::init
 )
 // --------------------------------------------------------------------
 {
-	return;
+	hyd_adj.reserve(ADJ_AUTO_RESERVE);
 }
 
 void _beads::init
@@ -586,8 +547,8 @@ void _beads::init
 )
 // --------------------------------------------------------------------
 {
+	init();
 	init_cross_list(1);
-	return;
 }
 
 void _beads::init
@@ -601,8 +562,8 @@ void _beads::init
 )
 // --------------------------------------------------------------------
 {
+	init();
 	init_cross_list(2);
-	return;
 }
 
 void _beads::init
@@ -617,7 +578,6 @@ void _beads::init
 {
 	sync_grid(grid);
 	init();
-	return;
 }
 
 void _beads::init
@@ -633,7 +593,6 @@ void _beads::init
 {
 	sync_grid(grid);
 	init(o_beads_0);
-	return;
 }
 
 
@@ -651,7 +610,6 @@ void _beads::init
 {
 	sync_grid(grid);
 	init(o_beads_0,o_beads_1);
-	return;
 }
 
 
@@ -667,12 +625,11 @@ void _beads::init_cross_list
 {
 	for( int i=0; i<n_obj; i++ ){
 		std::vector< std::vector<int> > tmp;
-		// tmp.push_back(-1);
 		cross_pair_rp.push_back(tmp);
-		// cross_pair_fg.push_back(tmp);
+		cross_pair_fg.push_back(tmp);
+		hyd_adj_cross.push_back(std::vector<bool>());
+		hyd_adj_cross[i].reserve(ADJ_CROS_RESERVE);
 	}
-
-	return;
 }
 
 void _beads::make_list
@@ -686,7 +643,6 @@ void _beads::make_list
 {
 	make_list_auto_rp();
 	make_list_auto_fg();
-	return;
 }
 
 void _beads::make_list
@@ -699,9 +655,8 @@ void _beads::make_list
 )
 // --------------------------------------------------------------------
 {
-	make_list_auto_rp( bcs );
-	make_list_auto_fg( bcs );
-	return;
+	make_list_auto_rp(bcs);
+	make_list_auto_fg(bcs);
 }
 
 void _beads::make_list
@@ -715,10 +670,9 @@ void _beads::make_list
 )
 // --------------------------------------------------------------------
 {
-	make_list_auto_rp( bcs );
-	make_list_cross_rp( bcs, o_beads_0, 0 );
-	make_list_cross_fg( bcs, o_beads_0, 0 );
-	return;
+	make_list_auto_rp(bcs);
+	make_list_cross_rp(bcs, o_beads_0, 0);
+	make_list_cross_fg(bcs, o_beads_0, 0);
 }
 
 void _beads::make_list
@@ -733,12 +687,11 @@ void _beads::make_list
 )
 // --------------------------------------------------------------------
 {
-	make_list_auto_rp( bcs );
-	make_list_cross_rp( bcs, o_beads_0, 0 );
-	make_list_cross_fg( bcs, o_beads_0, 0 );
-	make_list_cross_rp( bcs, o_beads_1, 1 );
-	make_list_cross_fg( bcs, o_beads_1, 1 );
-	return;
+	make_list_auto_rp(bcs);
+	make_list_cross_rp(bcs, o_beads_0, 0);
+	make_list_cross_fg(bcs, o_beads_0, 0);
+	make_list_cross_rp(bcs, o_beads_1, 1);
+	make_list_cross_fg(bcs, o_beads_1, 1);
 }
 
 
@@ -754,9 +707,8 @@ void _beads::make_list
 // --------------------------------------------------------------------
 {
 	grid.sort_beads(this);
-	make_list_auto_rp( bcs, grid );
-	make_list_auto_fg( bcs, grid );
-	return;
+	make_list_auto_rp(bcs, grid);
+	make_list_auto_fg(bcs, grid);
 }
 
 void _beads::make_list
@@ -772,10 +724,9 @@ void _beads::make_list
 // --------------------------------------------------------------------
 {
 	grid.sort_beads(this);
-	make_list_auto_rp ( bcs, grid );
-	make_list_cross_rp( bcs, grid, o_beads_0, 0 );
-	make_list_cross_fg( bcs, grid, o_beads_0, 0 );
-	return;
+	make_list_auto_rp (bcs, grid);
+	make_list_cross_rp(bcs, grid, o_beads_0, 0);
+	make_list_cross_fg(bcs, grid, o_beads_0, 0);
 }
 
 void _beads::make_list
@@ -791,49 +742,39 @@ void _beads::make_list
 )
 // --------------------------------------------------------------------
 {
-
-	// std::cout << "=======" <<std::endl;
-	// std::cout << pos[0].x << " " << pos[0].y << " " << pos[0].z <<std::endl;
-	// for( int i=0; i<auto_pair[0].size(); i++ ){
-	// 	std::cout << auto_pair[0][i] << std::endl;
-	// }
-
 	grid.sort_beads(this);
-	make_list_auto_rp ( bcs, grid );
-	make_list_cross_rp( bcs, grid, o_beads_0, 0 );
-	make_list_cross_fg( bcs, grid, o_beads_0, 0 );
-	make_list_cross_rp( bcs, grid, o_beads_1, 1 );
-	make_list_cross_fg( bcs, grid, o_beads_1, 1 );
-
-
-	return;
+	make_list_auto_rp (bcs, grid);
+	make_list_cross_rp(bcs, grid, o_beads_0, 0);
+	make_list_cross_fg(bcs, grid, o_beads_0, 0);
+	make_list_cross_rp(bcs, grid, o_beads_1, 1);
+	make_list_cross_fg(bcs, grid, o_beads_1, 1);
 }
 
-double _beads::k_roll()
-// --------------------------------------------------------------------
-//
-// Function: return random number in [0,1]
-// 
-// --------------------------------------------------------------------
-{
-	return (unif(mt)+1.0)/2.0;
-}
+// double _beads::k_roll()
+// // --------------------------------------------------------------------
+// //
+// // Function: return random number in [0,1]
+// // 
+// // --------------------------------------------------------------------
+// {
+// 	return (unif(mt)+1.0)/2.0;
+// }
 
-bool _beads::find_elem
-// --------------------------------------------------------------------
-//
-// Function: check exisitence of the element in an array
-// 			 TRUE  if the element exists
-// 			 FLASE if the element does NOT exist
-// 
-(
-	std::vector<int>	arr,
-	int 				elm
-)
-// --------------------------------------------------------------------
-{
-	return std::find(arr.begin(), arr.end(), elm) != arr.end();
-}
+// bool _beads::find_elem
+// // --------------------------------------------------------------------
+// //
+// // Function: check exisitence of the element in an array
+// // 			 TRUE  if the element exists
+// // 			 FLASE if the element does NOT exist
+// // 
+// (
+// 	std::vector<int>	arr,
+// 	int 				elm
+// )
+// // --------------------------------------------------------------------
+// {
+// 	return std::find(arr.begin(), arr.end(), elm) != arr.end();
+// }
 
 
 void _beads::make_list_auto_rp
@@ -847,19 +788,20 @@ void _beads::make_list_auto_rp
 {
 	for( int i=0; i<pos.size(); i++ ){
 		auto_pair_rp[i].clear();
+		auto_pair_rp[i].reserve(PAIR_RESERVE);
 	}
 
 	for( int i=0; i<pos.size(); i++ ){
 		_vec<double> pos_key = pos[i];
+		int hyd_key = hyd_inv_id[i];
 		for( int j=i+1; j<pos.size(); j++ ){
 			_vec<double> dr = pos[j] - pos_key;
+			if( hyd_key!=-1 && hyd_inv_id[j]!=-1 ) continue; //remove if both are fg
 			if( dr.sqr() < cut_rp_list_2 ){
 				auto_pair_rp[i].push_back(j);
 			}
 		}
 	}
-
-	return;
 }
 
 
@@ -868,58 +810,27 @@ void _beads::make_list_auto_fg
 // --------------------------------------------------------------------
 //
 // Function: make auto pair list
-// 
+//
 (
 )
 // --------------------------------------------------------------------
 {
-	// k_off
 	for( int i=0; i<hyd.size(); i++ ){
-		int j = pair_fg[i];
-
-		if( i < j ){ // prevent k_off judgement twice, exclude j = -1
-			if( k_roll() < kof_fg_t ){
-				pair_fg[i] = -1;	// itself
-				pair_fg[j] = -1;	// partner
-			}
-		}
+		auto_pair_fg[i].clear();
+		auto_pair_fg[i].reserve(PAIR_RESERVE);
 	}
-	
-	// k_on
+
 	for( int i=0; i<hyd.size(); i++ ){
-		
-		if( pair_fg[i] != -1 ) continue;
 		int ii = hyd_id[i];
 		_vec<double> pos_key = pos[ii];
-
-		double 	dist_min = 1e5;
-		int 	j_bind   = -1;
-
-		for( int j=0; j<hyd.size(); j++ ){ 	// survey all
-
-			if( i == j ) continue;
+		for( int j=i+1; j<hyd.size(); j++ ){
 			int jj = hyd_id[j];
 			_vec<double> dr = pos[jj] - pos_key;
-			double dr_sqr = dr.sqr();
-
-			if( dr_sqr < dist_min ){
-				dist_min = dr_sqr;
-				j_bind   = j ;
-			}
-		}
-
-		if( i < j_bind ){ // prevent k_on judgement twice, exclude j_bind = -1
-			if( pair_fg[j_bind] != -1 ) continue;
-			if( dist_min < cut_fg_list_2 ){
-				if( k_roll() < kon_fg_t ){
-					pair_fg[i] 		= j_bind; 	// hyd id -> hyd id
-					pair_fg[j_bind] = i;		// hyd id -> hyd id
-				}
+			if( dr.sqr() < cut_fg_list_2 ){
+				auto_pair_fg[i].push_back(jj); // hyd id -> bead id
 			}
 		}
 	}
-
-	return;
 }
 
 void _beads::make_list_auto_rp
@@ -934,20 +845,21 @@ void _beads::make_list_auto_rp
 {
 	for( int i=0; i<pos.size(); i++ ){
 		auto_pair_rp[i].clear();
+		auto_pair_rp[i].reserve(PAIR_RESERVE);
 	}
 
 	for( int i=0; i<pos.size(); i++ ){
 		_vec<double> pos_key = pos[i];
+		int hyd_key = hyd_inv_id[i];
 		for( int j=i+1; j<pos.size(); j++ ){
 			_vec<double> dr = pos[j] - pos_key;
 			bcs.adjust_periodic(&dr);
+			if( hyd_key!=-1 && hyd_inv_id[j]!=-1 ) continue; //remove if both are fg
 			if( dr.sqr() < cut_rp_list_2 ){
 				auto_pair_rp[i].push_back(j);
 			}
 		}
 	}
-
-	return;
 }
 
 void _beads::make_list_auto_fg
@@ -960,54 +872,23 @@ void _beads::make_list_auto_fg
 )
 // --------------------------------------------------------------------
 {
-	// k_off
 	for( int i=0; i<hyd.size(); i++ ){
-		int j = pair_fg[i];
-
-		if( i < j ){ // prevent k_off judgement twice, exclude j = -1
-			if( k_roll() < kof_fg_t ){
-				pair_fg[i] = -1;	// itself
-				pair_fg[j] = -1;	// partner
-			}
-		}
+		auto_pair_fg[i].clear();
+		auto_pair_fg[i].reserve(PAIR_RESERVE);
 	}
-	
-	// k_on
+
 	for( int i=0; i<hyd.size(); i++ ){
-		
-		if( pair_fg[i] != -1 ) continue;
 		int ii = hyd_id[i];
 		_vec<double> pos_key = pos[ii];
-
-		double 	dist_min = 1e5;
-		int 	j_bind   = -1;
-
-		for( int j=0; j<hyd.size(); j++ ){ 	// survey all
-
-			if( i == j ) continue;
+		for( int j=i+1; j<hyd.size(); j++ ){
 			int jj = hyd_id[j];
 			_vec<double> dr = pos[jj] - pos_key;
 			bcs.adjust_periodic(&dr);
-			double dr_sqr = dr.sqr();
-
-			if( dr_sqr < dist_min ){
-				dist_min = dr_sqr;
-				j_bind   = j ;
-			}
-		}
-
-		if( i < j_bind ){ // prevent k_on judgement twice, exclude j_bind = -1
-			if( pair_fg[j_bind] != -1 ) continue;
-			if( dist_min < cut_fg_list_2 ){
-				if( k_roll() < kon_fg_t ){
-					pair_fg[i] 		= j_bind; 	// hyd id -> hyd id
-					pair_fg[j_bind] = i;		// hyd id -> hyd id
-				}
+			if( dr.sqr() < cut_fg_list_2 ){
+				auto_pair_fg[i].push_back(jj); // hyd id -> bead id
 			}
 		}
 	}
-
-	return;
 }
 
 void _beads::make_list_auto_rp
@@ -1024,6 +905,60 @@ void _beads::make_list_auto_rp
 
 	for( int i=0; i<pos.size(); i++ ){
 		auto_pair_rp[i].clear();
+		auto_pair_rp[i].reserve(PAIR_RESERVE);
+	}
+
+	// among neighboring grids (including itself)
+	for( int bi=0; bi<grid.N_grid; bi++ ){
+	for( int bj : grid.grid_nbr[bi] ){ 	//grid_nbr include itself
+
+		int N_bead_i = binned_beads[bi].size();
+		int N_bead_j = binned_beads[bj].size();
+
+		for( int i=0; i<N_bead_i; i++ ){
+			int ii = binned_beads[bi][i];
+			_vec<double> pos_key = pos[ii];
+			int hyd_key = hyd_inv_id[ii];
+
+		for( int j=0; j<N_bead_j; j++ ){
+			int jj = binned_beads[bj][j];
+
+			if( ii >= jj ) continue;
+			if( hyd_key!=-1 && hyd_inv_id[jj]!=-1 ) continue; //remove if both are fg
+
+			_vec<double> dr = pos[jj] - pos_key;
+			bcs.adjust_periodic(&dr);
+
+			double dr_sqr = dr.sqr();
+
+			if( dr_sqr < cut_rp_list_2 ){
+				auto_pair_rp[ii].push_back(jj);
+			}
+		}
+		}
+	}
+	}
+
+	for( int i=0; i<pos.size(); i++ ){
+		std::sort(auto_pair_rp[i].begin(),auto_pair_rp[i].end());
+	}
+}
+
+
+void _beads::make_list_auto_fg
+// --------------------------------------------------------------------
+//
+// Function: make auto pair list using grid list
+// 
+(
+	_bcs 	&bcs,
+	_grid 	&grid
+)
+// --------------------------------------------------------------------
+{
+	for( int i=0; i<hyd.size(); i++ ){
+		auto_pair_fg[i].clear();
+		auto_pair_fg[i].reserve(PAIR_RESERVE);
 	}
 
 	// among neighboring grids (including itself)
@@ -1047,98 +982,21 @@ void _beads::make_list_auto_rp
 
 			double dr_sqr = dr.sqr();
 
-			if( dr_sqr < cut_rp_list_2 ){
-				auto_pair_rp[ii].push_back(jj);
+			if( dr_sqr < cut_fg_list_2 ){
+				int fg_i = hyd_inv_id[ii];
+				int fg_j = hyd_inv_id[jj];
+				if( fg_i != -1 && fg_j != -1 ){
+					auto_pair_fg[fg_i].push_back(jj); // hyd id -> bead id
+				}
 			}
-
 		}
 		}
 	}
 	}
 
-	for( int i=0; i<pos.size(); i++ ){
-		std::sort(auto_pair_rp[i].begin(),auto_pair_rp[i].end());
-	}
-
-	return;
-}
-
-
-void _beads::make_list_auto_fg
-// --------------------------------------------------------------------
-//
-// Function: make auto pair list using grid list
-// 
-(
-	_bcs 	&bcs,
-	_grid 	&grid
-)
-// --------------------------------------------------------------------
-{
-	// k_off
 	for( int i=0; i<hyd.size(); i++ ){
-		int j = pair_fg[i];
-
-		if( i < j ){ // prevent k_off judgement twice, exclude j = -1
-			if( k_roll() < kof_fg_t ){
-				pair_fg[i] = -1;	// itself
-				pair_fg[j] = -1;	// partner
-			}
-		}
+		std::sort(auto_pair_fg[i].begin(),auto_pair_fg[i].end());
 	}
-
-	// among neighboring grids (including itself)
-	for( int bi=0; bi<grid.N_grid; bi++ ){
-		int N_bead_i = binned_beads[bi].size();
-
-		for( int i=0; i<N_bead_i; i++ ){
-			int ii = binned_beads[bi][i];
-			int fg_i = hyd_inv_id[ii];
-			
-			if( fg_i == -1 )		  continue;
-			if( pair_fg[fg_i] != -1 ) continue;
-
-			_vec<double> pos_key = pos[ii];
-			double 		dist_min = 1e5;
-			int 		j_bind   = -1;
-
-			for( int bj : grid.grid_nbr[bi] ){ 	//grid_nbr include itself
-				int N_bead_j = binned_beads[bj].size();
-
-				for( int j=0; j<N_bead_j; j++ ){ // survery all
-					int jj = binned_beads[bj][j];
-					int fg_j = hyd_inv_id[jj];
-
-					if( ii == jj ) 	 continue;
-					if( fg_j == -1 ) continue;
-
-					_vec<double> dr = pos[jj] - pos_key;
-					bcs.adjust_periodic(&dr);
-					double dr_sqr = dr.sqr();
-
-					if( dr_sqr < dist_min ){
-						dist_min = dr_sqr;
-						j_bind   = fg_j;
-					}
-
-				}
-			}
-
-			// k_on
-			if( fg_i < j_bind ){ // prevent k_on judgement twice, exclude j_bind = -1
-				if( pair_fg[j_bind] != -1 ) continue;
-				if( dist_min < cut_fg_list_2 ){
-					if( k_roll() < kon_fg_t ){
-						pair_fg[fg_i]	= j_bind; 	// hyd id -> hyd id
-						pair_fg[j_bind] = fg_i;		// hyd id -> hyd id
-					}
-				}
-			}
-
-		}
-	}
-
-	return;
 }
 
 void _beads::make_list_cross_rp
@@ -1155,22 +1013,24 @@ void _beads::make_list_cross_rp
 {
 	for( int i=0; i<pos.size(); i++ ){
 		cross_pair_rp[cross_id][i].clear();
+		cross_pair_rp[cross_id][i].reserve(PAIR_RESERVE);
 	}
 	
-	std::vector<_vec<double> > o_pos = o_beads.pos;
+	// std::vector<_vec<double> > o_pos = o_beads.pos;
+	// std::vector<int> o_hyd_inv_id = o_beads.hyd_inv_id;
 
 	for( int i=0; i<pos.size(); i++ ){
 		_vec<double> pos_key = pos[i];
-		for( int j=0; j<o_pos.size(); j++ ){
-			_vec<double> dr = o_pos[j] - pos_key;
+		int hyd_key = hyd_inv_id[i];
+		for( int j=0; j<o_beads.pos.size(); j++ ){
+			_vec<double> dr = o_beads.pos[j] - pos_key;
+			if( hyd_key!=-1 && o_beads.hyd_inv_id[j]!=-1 ) continue; //remove if both are fg
 			bcs.adjust_periodic(&dr);
 			if( dr.sqr() < cut_rp_list_2 ){
 				cross_pair_rp[cross_id][i].push_back(j);
 			}
 		}
 	}
-
-	return;
 }
 
 
@@ -1186,91 +1046,25 @@ void _beads::make_list_cross_fg
 )
 // --------------------------------------------------------------------
 {
-	std::vector<_vec<double> > o_pos = o_beads.pos;
-
-	// k_off
 	for( int i=0; i<hyd.size(); i++ ){
-		int j = pair_fg[i];
-
-		if( i < j ){ // prevent k_off judgement twice, exclude j = -1
-			if( k_roll() < kof_fg_t ){
-				pair_fg[i] = -1;							// itself
-				if( j/FG_PAIR_SHIFT == 0 ){
-					pair_fg[j] = -1;						// partner
-				}else{
-					o_beads.pair_fg[j%FG_PAIR_SHIFT] = -1; 	// partner
-				}
-			}
-		}
+		cross_pair_fg[cross_id][i].clear();
+		cross_pair_fg[cross_id][i].reserve(PAIR_RESERVE);
 	}
 
+	// std::vector<_vec<double> > o_pos = o_beads.pos;
 
-
-	// k_on
 	for( int i=0; i<hyd.size(); i++ ){
-		
-		if( pair_fg[i] != -1 ) continue;
 		int ii = hyd_id[i];
 		_vec<double> pos_key = pos[ii];
-
-		double 	dist_min = 1e5;
-		int 	j_bind   = -1;
-		int 	j_reff 	 = -1;		// j_bind + (cross_id+1) * FG_PAIR_SHIFT
-		int 	object 	 = -1; 		// 0:self, 1:cross
-
-		for( int j=0; j<hyd.size(); j++ ){ 	// survey all (auto)
-
-			if( i == j ) continue;
-			int jj = hyd_id[j];
-			_vec<double> dr = pos[jj] - pos_key;
-			bcs.adjust_periodic(&dr);
-			double dr_sqr = dr.sqr();
-
-			if( dr_sqr < dist_min ){
-				dist_min = dr_sqr;
-				j_bind   = j;
-				j_reff 	 = j;
-				object 	 = 0;
-			}
-		}
-
-		for( int j=0; j<o_beads.hyd.size(); j++ ){ // survey all (cross)
-
+		for( int j=0; j<o_beads.hyd.size(); j++ ){
 			int jj = o_beads.hyd_id[j];
-			_vec<double> dr = o_pos[jj] - pos_key;
+			_vec<double> dr = o_beads.pos[jj] - pos_key;
 			bcs.adjust_periodic(&dr);
-			double dr_sqr = dr.sqr();
-
-			if( dr_sqr < dist_min ){
-				dist_min = dr_sqr;
-				j_bind   = j;
-				j_reff 	 = j + (cross_id+1) * FG_PAIR_SHIFT;
-				object 	 = 1;
-			}
-		}
-
-
-		if( i < j_reff ){ // prevent k_on judgement twice, exclude j_bind = -1
-			if( object == 0 ){
-				if(pair_fg[j_bind] != -1) continue;
-			}else{
-				if(o_beads.pair_fg[j_bind] != -1) continue;
-			}
-			if( dist_min < cut_fg_list_2 ){
-				if( k_roll() < kon_fg_t ){
-					pair_fg[i] 		= j_reff; 	// hyd id -> hyd id
-					if( object == 0 ){
-						pair_fg[j_bind] = i;	// hyd id -> hyd id
-					}else{
-						o_beads.pair_fg[j_bind] = i;
-					}
-					
-				}
+			if( dr.sqr() < cut_fg_list_2 ){
+				cross_pair_fg[cross_id][i].push_back(jj); // hyd id -> bead id
 			}
 		}
 	}
-
-	return;
 }
 
 
@@ -1288,10 +1082,12 @@ void _beads::make_list_cross_rp
 )
 // --------------------------------------------------------------------
 {
-	std::vector<_vec<double> > o_pos = o_beads.pos;
+	// std::vector<_vec<double> > o_pos = o_beads.pos;
+	// std::vector<int> o_hyd_inv_id = o_beads.hyd_inv_id;
 
 	for( int i=0; i<pos.size(); i++ ){
 		cross_pair_rp[cross_id][i].clear();
+		cross_pair_rp[cross_id][i].reserve(PAIR_RESERVE);
 	}
 
 	// among neighboring grids (including itself)
@@ -1304,11 +1100,14 @@ void _beads::make_list_cross_rp
 		for( int i=0; i<N_bead_i; i++ ){
 			int ii = binned_beads[bi][i];
 			_vec<double> pos_key = pos[ii];
+			int hyd_key = hyd_inv_id[ii];
 
 		for( int j=0; j<o_N_bead_j; j++ ){
 			int jj = o_beads.binned_beads[bj][j];
 
-			_vec<double> dr = o_pos[jj] - pos_key;
+			if( hyd_key!=-1 && o_beads.hyd_inv_id[jj]!=-1 ) continue; //remove if both are fg
+
+			_vec<double> dr = o_beads.pos[jj] - pos_key;
 			bcs.adjust_periodic(&dr);
 
 			double dr_sqr = dr.sqr();
@@ -1324,8 +1123,6 @@ void _beads::make_list_cross_rp
 	for( int i=0; i<pos.size(); i++ ){
 		std::sort(cross_pair_rp[cross_id][i].begin(),cross_pair_rp[cross_id][i].end());
 	}
-
-	return;
 }
 
 
@@ -1342,112 +1139,46 @@ void _beads::make_list_cross_fg
 )
 // --------------------------------------------------------------------
 {
-	std::vector<_vec<double> > o_pos = o_beads.pos;
-
-	// k_off
 	for( int i=0; i<hyd.size(); i++ ){
-		int j = pair_fg[i];
-
-		if( i < j ){ // prevent k_off judgement twice, exclude j = -1
-			if( k_roll() < kof_fg_t ){
-				pair_fg[i] = -1;							// itself
-				if( j/FG_PAIR_SHIFT == 0 ){
-					pair_fg[j] = -1;						// partner
-				}else{
-					o_beads.pair_fg[j%FG_PAIR_SHIFT] = -1; 	// partner
-				}
-			}
-		}
+		cross_pair_fg[cross_id][i].clear();
+		cross_pair_fg[cross_id][i].reserve(PAIR_RESERVE);
 	}
 
+	// std::vector<_vec<double> > o_pos = o_beads.pos;
 
 	// among neighboring grids (including itself)
 	for( int bi=0; bi<grid.N_grid; bi++ ){
-		int N_bead_i = binned_beads[bi].size();
+	for( int bj : grid.grid_nbr[bi] ){ 	// grid_nbr include itself
+
+		int   N_bead_i =   		 binned_beads[bi].size();
+		int o_N_bead_j = o_beads.binned_beads[bj].size();
 
 		for( int i=0; i<N_bead_i; i++ ){
 			int ii = binned_beads[bi][i];
-			int fg_i = hyd_inv_id[ii];
-			
-			if( fg_i == -1 )		  continue;
-			if( pair_fg[fg_i] != -1 ) continue;
-
 			_vec<double> pos_key = pos[ii];
-			double 		dist_min = 1e5;
-			int 		j_bind   = -1;
-			int 		j_reff 	 = -1;		// j_bind + (cross_id+1) * FG_PAIR_SHIFT
-			int 		object 	 = -1; 		// 0:self, 1:cross
 
-			for( int bj : grid.grid_nbr[bi] ){ 	//grid_nbr include itself
+		for( int j=0; j<o_N_bead_j; j++ ){
+			int jj = o_beads.binned_beads[bj][j];
 
-				// --- self survey ----
-				int N_bead_j = binned_beads[bj].size();
-				for( int j=0; j<N_bead_j; j++ ){ // survery all
-					int jj = binned_beads[bj][j];
-					int fg_j = hyd_inv_id[jj];
+			_vec<double> dr = o_beads.pos[jj] - pos_key;
+			bcs.adjust_periodic(&dr);
 
-					if( ii == jj ) 	 continue;
-					if( fg_j == -1 ) continue;
-
-					_vec<double> dr = pos[jj] - pos_key;
-					bcs.adjust_periodic(&dr);
-					double dr_sqr = dr.sqr();
-
-					if( dr_sqr < dist_min ){
-						dist_min = dr_sqr;
-						j_bind   = fg_j;
-						j_reff   = fg_j;
-						object   = 0;
-					}
-				}
-
-				// --- cross survey ---
-				int o_N_bead_j = o_beads.binned_beads[bj].size();
-
-				for( int j=0; j<o_N_bead_j; j++ ){ // survery all
-					int jj = o_beads.binned_beads[bj][j];
-					int fg_j = o_beads.hyd_inv_id[jj];
-
-					if( fg_j == -1 ) continue;
-
-					_vec<double> dr = o_pos[jj] - pos_key;
-					bcs.adjust_periodic(&dr);
-					double dr_sqr = dr.sqr();
-
-					if( dr_sqr < dist_min ){
-						dist_min = dr_sqr;
-						j_bind   = fg_j;
-						j_reff 	 = fg_j + (cross_id+1) * FG_PAIR_SHIFT;
-						object 	 = 1;
-					}
-				}
-
-			}
-
-			// --- k_on ----
-			if( fg_i < j_reff ){ // prevent k_on judgement twice, exclude j_bind = -1
-				if( object == 0 ){
-					if(pair_fg[j_bind] != -1) continue;
-				}else{
-					if(o_beads.pair_fg[j_bind] != -1) continue;
-				}
-				if( dist_min < cut_fg_list_2 ){
-					if( k_roll() < kon_fg_t ){
-						pair_fg[fg_i] 		= j_reff; 	// hyd id -> hyd id
-						if( object == 0 ){
-							pair_fg[j_bind] = fg_i;		// hyd id -> hyd id
-						}else{
-							o_beads.pair_fg[j_bind] = fg_i;
-						}
-						
-					}
+			double dr_sqr = dr.sqr();
+			if( dr_sqr < cut_fg_list_2 ){
+				int fg_i = hyd_inv_id[ii];
+				int fg_j = o_beads.hyd_inv_id[jj];
+				if( fg_i != -1 && fg_j != -1 ){
+					cross_pair_fg[cross_id][fg_i].push_back(jj); // hyd id -> bead id
 				}
 			}
-
+		}
 		}
 	}
+	}
 
-	return;
+	for( int i=0; i<hyd.size(); i++ ){
+		std::sort(cross_pair_fg[cross_id][i].begin(),cross_pair_fg[cross_id][i].end());
+	}
 }
 
 _vec<double> _beads::rp_force
@@ -1461,9 +1192,13 @@ _vec<double> _beads::rp_force
 )
 // --------------------------------------------------------------------
 {
-	double dist  	= sqrt(dist_2);
-	double force 	= coeff_rp * exp( -dist / sgm_rp ) + shift_rp;
-	return (force/dist) * dr;
+	double dist_4 = dist_2 * dist_2;
+	double dist_6 = dist_2 * dist_2 * dist_2;
+	double core_1 = a_shift_rp + dist_6;
+	double core_2 = core_1 * core_1;
+	double core_3 = core_1 * core_1 * core_1;
+	double force  = coef_rp_12 * dist_4 / core_3 + coef_rp_6 * dist_4 / core_2;
+	return force * dr;
 }
 
 _vec<double> _beads::fg_force
@@ -1478,8 +1213,13 @@ _vec<double> _beads::fg_force
 )
 // --------------------------------------------------------------------
 {
-	double dist  	= sqrt(dist_2);
-	return - prod_hyd * frc_fg_const / dist * dr;
+	double dist_4 = dist_2 * dist_2;
+	double dist_6 = dist_2 * dist_2 * dist_2;
+	double core_1 = a_shift_fg + dist_6;
+	double core_2 = core_1 * core_1;
+	double core_3 = core_1 * core_1 * core_1;
+	double force  = coef_fg_12 * dist_4 / core_3 + coef_fg_6 * dist_4 / core_2;
+	return prod_hyd * force * dr;
 }
 
 
@@ -1502,18 +1242,14 @@ void _beads::calc_force_rp
 
 			double dist_2 = dr.sqr();
 
-			// repulsive force
 			if( dist_2 < cut_rp_2 ){
 				_vec<double> df = rp_force(dist_2, dr);
 				frc_key	+= df;
 				frc[jj] -= df;
 			}
-
 		}
 		frc[i] += frc_key;
 	}
-
-	return;
 }
 
 void _beads::calc_force_rp
@@ -1537,7 +1273,6 @@ void _beads::calc_force_rp
 			bcs.adjust_periodic(&dr);
 			double dist_2 = dr.sqr();
 
-			// repulsive force
 			if( dist_2 < cut_rp_2 ){
 				_vec<double> df = rp_force(dist_2, dr);
 				frc_key += df;
@@ -1546,8 +1281,6 @@ void _beads::calc_force_rp
 		}
 		frc[i] += frc_key;
 	}
-
-	return;
 }
 
 void _beads::calc_force_fg
@@ -1560,23 +1293,26 @@ void _beads::calc_force_fg
 // --------------------------------------------------------------------
 {
 	for( int i=0; i<hyd.size(); i++ ){
-		int j = pair_fg[i];
-		// if( j == -1 ) continue;
-		if( j <= i ) continue; 	// exclude j<i and j=-1
-
 		int ii = hyd_id[i];
-		int jj = hyd_id[j];
+		_vec<double> pos_key = pos[ii];
+		_vec<double> frc_key(0,0,0);
 
-		_vec<double> dr = pos[ii] - pos[jj];
-		double dist_2 = dr.sqr();
-		double prod_hyd = hyd[i] * hyd[j];
+		for( int j=0; j<auto_pair_fg[i].size(); j++ ){
+			int jj = auto_pair_fg[i][j]; // jj is already a bead id
+			_vec<double> dr = pos_key - pos[jj];
 
-		_vec<double> df = fg_force(dist_2, dr, prod_hyd);
-		frc[ii] += df;
-		frc[jj] -= df;
+			double dist_2 = dr.sqr();
+
+			if( dist_2 < cut_fg_2 ){
+				int    fg_j     = hyd_inv_id[jj]; // bead id -> hyd id
+				double prod_hyd = hyd[i] * hyd[fg_j];
+				_vec<double> df = fg_force(dist_2, dr, prod_hyd);
+				frc_key += df;
+				frc[jj] -= df;
+			}
+		}
+		frc[ii] += frc_key;
 	}
-
-	return;
 }
 
 void _beads::calc_force_fg
@@ -1590,24 +1326,27 @@ void _beads::calc_force_fg
 // --------------------------------------------------------------------
 {
 	for( int i=0; i<hyd.size(); i++ ){
-		int j = pair_fg[i];
-		// if( j == -1 ) continue;
-		if( j <= i ) continue; 	// exclude j<i and j=-1
-
 		int ii = hyd_id[i];
-		int jj = hyd_id[j];
+		_vec<double> pos_key = pos[ii];
+		_vec<double> frc_key(0,0,0);
 
-		_vec<double> dr = pos[ii] - pos[jj];
-		bcs.adjust_periodic(&dr);
-		double dist_2 = dr.sqr();
-		double prod_hyd = hyd[i] * hyd[j];
+		for( int j=0; j<auto_pair_fg[i].size(); j++ ){
+			int jj = auto_pair_fg[i][j]; // jj is already a bead id
+			_vec<double> dr = pos_key - pos[jj];
 
-		_vec<double> df = fg_force(dist_2, dr, prod_hyd);
-		frc[ii] += df;
-		frc[jj] -= df;
+			bcs.adjust_periodic(&dr);
+			double dist_2 = dr.sqr();
+
+			if( dist_2 < cut_fg_2 ){
+				int    fg_j     = hyd_inv_id[jj]; // bead id -> hyd id
+				double prod_hyd = hyd[i] * hyd[fg_j];
+				_vec<double> df = fg_force(dist_2, dr, prod_hyd);
+				frc_key += df;
+				frc[jj] -= df;
+			}
+		}
+		frc[ii] += frc_key;
 	}
-
-	return;
 }
 
 
@@ -1634,7 +1373,6 @@ void _beads::calc_force_rp
 			bcs.adjust_periodic(&dr);
 			double dist_2 = dr.sqr();
 
-			// repulsive force
 			if( dist_2 < cut_rp_2 ){
 				_vec<double> df = rp_force(dist_2, dr);
 				frc_key 	   += df;
@@ -1643,8 +1381,6 @@ void _beads::calc_force_rp
 		}
 		frc[i] += frc_key;
 	}
-
-	return;
 }
 
 void _beads::calc_force_fg
@@ -1659,47 +1395,28 @@ void _beads::calc_force_fg
 )
 // --------------------------------------------------------------------
 {
-
 	for( int i=0; i<hyd.size(); i++ ){
-
-		int j = pair_fg[i];
-		// if( j == -1 ) continue;
-		if( j <= i ) continue; 	// exclude j<i and j=-1
-
 		int ii = hyd_id[i];
-		int jj;
-		_vec<double> pos_jj;
-		double hyd_j;
+		_vec<double> pos_key = pos[ii];
+		_vec<double> frc_key(0,0,0);
 
-		if( j/FG_PAIR_SHIFT == 0 ){
-			jj = hyd_id[j];
-			pos_jj = pos[jj];
-			hyd_j = hyd[j];
-		}else{
-			jj = o_beads.hyd_id[j%FG_PAIR_SHIFT];
-			pos_jj = o_beads.pos[jj];
-			hyd_j = o_beads.hyd[j%FG_PAIR_SHIFT];
+		for( int j=0; j<cross_pair_fg[cross_id][i].size(); j++ ){
+
+			int jj = cross_pair_fg[cross_id][i][j]; // this is already bead id
+			_vec<double> dr = pos_key - o_beads.pos[jj];
+			bcs.adjust_periodic(&dr);
+			double dist_2 = dr.sqr();
+
+			if( dist_2 < cut_fg_2 ){
+				int    fg_j     = o_beads.hyd_inv_id[jj]; // bead id -> hyd id
+				double prod_hyd = hyd[i] * o_beads.hyd[fg_j];
+				_vec<double> df = fg_force(dist_2, dr, prod_hyd);
+				frc_key 	   += df;
+				o_beads.frc[jj]-= df;
+			}
 		}
-
-		// std::cout << i << " " << ii << " " << j << " " << jj << std::endl;
-
-		_vec<double> dr = pos[ii] - pos_jj;
-		bcs.adjust_periodic(&dr);
-		double dist_2 = dr.sqr();
-		double prod_hyd = hyd[i] * hyd_j;
-
-		_vec<double> df = fg_force(dist_2, dr, prod_hyd);
-		frc[ii] += df;
-
-		if( j/FG_PAIR_SHIFT == 0 ){
-			frc[jj] -= df;
-		}else{
-			o_beads.frc[jj] -= df;
-		}
-
+		frc[ii] += frc_key;
 	}
-
-	return;
 }
 
 
@@ -1715,7 +1432,6 @@ void _beads::init_force
 	for( int i=0; i<frc.size(); i++ ){
 		frc[i] = _vec<double> (0.,0.,0.);
 	}
-	return;
 }
 
 
@@ -1731,7 +1447,6 @@ void _beads::calc_force
 	init_force();
 	calc_force_rp();
 	calc_force_fg();
-	return;
 }
 
 void _beads::calc_force
@@ -1745,18 +1460,16 @@ void _beads::calc_force
 // --------------------------------------------------------------------
 {
 	init_force();
-	calc_force_rp( bcs );
-	calc_force_fg( bcs );
-	// calc_force_rpfg(bcs);
+	calc_force_rp(bcs);
+	calc_force_fg(bcs);
 	bcs.calc_force_wall(this);
-	return;
 }
 
 void _beads::calc_force
 // --------------------------------------------------------------------
 //
 // Function: calculate force between this and the other _bead object
-// 
+//
 (
 	_bcs 	&bcs, 		// boundary 
 	_beads 	&o_beads_0	// the other _bead object
@@ -1764,14 +1477,11 @@ void _beads::calc_force
 // --------------------------------------------------------------------
 {
 	init_force();
-	calc_force_rp( bcs );
-	// calc_force_fg( bcs );
-	// calc_force_rpfg(bcs);
-	calc_force_rp( bcs, o_beads_0, 0 );
-	calc_force_fg( bcs, o_beads_0, 0 );
-	// calc_force_rpfg( bcs, o_beads_0, 0 );
+	calc_force_rp(bcs);
+	calc_force_fg(bcs);
+	calc_force_rp(bcs, o_beads_0, 0);
+	calc_force_fg(bcs, o_beads_0, 0);
 	bcs.calc_force_wall(this);
-	return;
 }
 
 // void _beads::calc_force
@@ -1809,14 +1519,11 @@ void _beads::move
 )
 // --------------------------------------------------------------------
 {
-
 	for( int i=0; i<pos.size(); i++ ){
 		pos[i].x = pos[i].x + coeff_ex * frc[i].x + rand_std * unif(mt); 
 		pos[i].y = pos[i].y + coeff_ex * frc[i].y + rand_std * unif(mt); 
 		pos[i].z = pos[i].z + coeff_ex * frc[i].z + rand_std * unif(mt); 
 	}
-
-	return;
 }
 
 
@@ -1830,7 +1537,6 @@ void _beads::move
 )
 // --------------------------------------------------------------------
 {
-
 	for( int i=0; i<pos.size(); i++ ){
 		pos[i].x = pos[i].x + coeff_ex * frc[i].x + rand_std * unif(mt); 
 		pos[i].y = pos[i].y + coeff_ex * frc[i].y + rand_std * unif(mt); 
@@ -1844,10 +1550,312 @@ void _beads::move
 	// exit(1);
 
 	bcs.move_at_boundary(this);
-
-	return;
 }
 
+
+void _beads::set_hyd_adj
+// --------------------------------------------------------------------
+//
+// Function: initially set 1d array for the adjacent matrix
+//
+(
+)
+// --------------------------------------------------------------------
+{
+	// std::cout << "create1" << std::endl;
+	for( int i=0; i<hyd.size(); i++ ){
+	for( int j=i+1; j<hyd.size(); j++ ){
+		// int id = i*(hyd.size()-1) - (i*(i-1))/2 + (j-i-1);
+		hyd_adj.push_back(0);
+	}}
+}
+
+void _beads::set_hyd_adj
+// --------------------------------------------------------------------
+//
+// Function: initially set 1d array for the adjacent matrix
+//
+(
+	int 	o_beads_size, 
+	int 	cross_id
+)
+// --------------------------------------------------------------------
+{
+	for( int i=0; i<hyd.size(); i++ ){
+	for( int j=0; j<o_beads_size; j++ ){
+		// int id = i*o_beads.hyd.size() + j;
+		hyd_adj_cross[cross_id].push_back(0);
+	}}
+}
+
+
+void _beads::init_hyd_adj_auto
+// --------------------------------------------------------------------
+//
+// Function: initiate adjcent matrix (set all elements zero)
+// 
+(
+)
+// --------------------------------------------------------------------
+{
+	if( hyd_adj.size() == 0 ) set_hyd_adj(); // initialize if the array is empty
+	for( int i=0; i<hyd.size(); i++ ){
+	for( int j=i+1; j<hyd.size(); j++ ){
+		int id = i*(hyd.size()-1) - (i*(i-1))/2 + (j-i-1);
+		hyd_adj[id] = 0;
+	}}
+}
+
+void _beads::init_hyd_adj_cross
+// --------------------------------------------------------------------
+//
+// Function: initiate adjcent matrix (set all elements zero)
+// 
+(
+	int 	o_beads_size,
+	int 	cross_id
+)
+// --------------------------------------------------------------------
+{
+	if( hyd_adj_cross[cross_id].size() == 0 ) set_hyd_adj(o_beads_size, cross_id); // initialize if the array is empty
+	for( int i=0; i<hyd.size(); i++ ){
+	for( int j=0; j<o_beads_size; j++ ){
+		// int id = i*hyd.size() + j;
+		int id = i*o_beads_size + j;
+		hyd_adj_cross[cross_id][id] = 0;
+	}}
+}
+
+void _beads::make_hyd_adj
+// --------------------------------------------------------------------
+//
+// Function: make adjcent matrix before output
+// 
+(
+)
+// --------------------------------------------------------------------
+{
+	init_hyd_adj_auto();
+	make_hyd_adj_auto();
+}
+
+void _beads::make_hyd_adj
+// --------------------------------------------------------------------
+//
+// Function: make adjcent matrix before output
+// 
+(
+	_bcs 	&bcs
+)
+// --------------------------------------------------------------------
+{
+	init_hyd_adj_auto();
+	make_hyd_adj_auto(bcs);
+}
+
+void _beads::make_hyd_adj
+// --------------------------------------------------------------------
+//
+// Function: make adjcent matrix before output
+// 
+(
+	_bcs 	&bcs,
+	_beads 	&o_beads_0
+)
+// --------------------------------------------------------------------
+{
+	init_hyd_adj_auto();
+	init_hyd_adj_cross(o_beads_0.hyd.size(), 0);
+	make_hyd_adj_auto(bcs);
+	make_hyd_adj_cross(bcs, o_beads_0, 0);
+}
+
+void _beads::make_hyd_adj_auto
+// --------------------------------------------------------------------
+//
+// Function:
+// 
+(
+)
+// --------------------------------------------------------------------
+{
+	for( int i=0; i<hyd.size(); i++ ){
+		int ii = hyd_id[i];
+		_vec<double> pos_key = pos[ii];
+
+		for( int j=i+1; j<hyd.size(); j++ ){
+			int jj = hyd_id[j];
+
+			_vec<double> dr = pos_key - pos[jj];
+			double dist_2 = dr.sqr();
+
+			if( dist_2 < cut_fg_2 ){
+				int id = i*(hyd.size()-1) - (i*(i-1))/2 + (j-i-1);
+				hyd_adj[id] = 1;
+			}
+		}
+	}
+}
+
+void _beads::make_hyd_adj_auto
+// --------------------------------------------------------------------
+//
+// Function:
+// 
+(
+	_bcs 	&bcs
+)
+// --------------------------------------------------------------------
+{
+	for( int i=0; i<hyd.size(); i++ ){
+		int ii = hyd_id[i];
+		_vec<double> pos_key = pos[ii];
+
+		for( int j=i+1; j<hyd.size(); j++ ){
+			int jj = hyd_id[j];
+
+			_vec<double> dr = pos_key - pos[jj];
+			bcs.adjust_periodic(&dr);
+			double dist_2 = dr.sqr();
+
+			if( dist_2 < cut_fg_2 ){
+				int id = i*(hyd.size()-1) - (i*(i-1))/2 + (j-i-1);
+				hyd_adj[id] = 1;
+			}
+		}
+	}
+}
+
+
+void _beads::make_hyd_adj_cross
+// --------------------------------------------------------------------
+//
+// Function:
+// 
+(
+	_bcs 	&bcs,
+	_beads 	&o_beads,
+	int 	cross_id
+)
+// --------------------------------------------------------------------
+{
+	for( int i=0; i<hyd.size(); i++ ){
+		int ii = hyd_id[i];
+		_vec<double> pos_key = pos[ii];
+
+		for( int j=0; j<o_beads.hyd.size(); j++ ){
+			int jj = o_beads.hyd_id[j];
+
+			_vec<double> dr = pos_key - o_beads.pos[jj];
+			bcs.adjust_periodic(&dr);
+			double dist_2 = dr.sqr();
+
+			if( dist_2 < cut_fg_2 ){
+				// int id = i*hyd.size() + j;
+				int id = i*o_beads.hyd.size() + j;
+				hyd_adj_cross[cross_id][id] = 1;
+			}
+		}
+	}
+}
+
+
+void _beads::init_hyd_state
+// --------------------------------------------------------------------
+//
+// Function: 
+// 
+(
+)
+// --------------------------------------------------------------------
+{
+	for( int i=0; i<hyd_state.size(); i++ ){
+		hyd_state[i] = 0;
+	}
+}
+
+void _beads::calc_hyd_state_auto
+// --------------------------------------------------------------------
+//
+// Function: 
+// 
+(
+)
+// --------------------------------------------------------------------
+{
+	for( int i=0; i<hyd.size(); i++ ){
+		int count = 0;
+		for( int j=i+1; j<hyd.size(); j++ ){
+			int id = i*(hyd.size()-1) - (i*(i-1))/2 + (j-i-1);
+			if( hyd_adj[id] == 1 ){
+				count ++;
+				hyd_state[j] ++;
+			}
+		}
+		hyd_state[i] += count;
+	}
+}
+
+void _beads::calc_hyd_state_cross
+// --------------------------------------------------------------------
+//
+// Function: 
+// 
+(
+	_beads 	&o_beads,
+	int 	cross_id
+)
+// --------------------------------------------------------------------
+{
+	for( int i=0; i<hyd.size(); i++ ){
+		int count = 0;
+		for( int j=0; j<o_beads.hyd.size(); j++ ){
+			// int id = i*hyd.size() + j;
+			int id = i*o_beads.hyd.size() + j;
+			count += hyd_adj_cross[cross_id][id];
+		}
+		hyd_state[i] += count;
+	}
+
+	for( int j=0; j<o_beads.hyd.size(); j++ ){
+		int count = 0;
+		for( int i=0; i<hyd.size(); i++ ){
+			// int id = i*hyd.size() + j;
+			int id = i*o_beads.hyd.size() + j;
+			count += hyd_adj_cross[cross_id][id];
+		}
+		o_beads.hyd_state[j] += count;
+	}
+}
+
+void _beads::calc_hyd_state
+// --------------------------------------------------------------------
+//
+// Function: 
+// 
+(
+)
+// --------------------------------------------------------------------
+{
+	init_hyd_state();
+	calc_hyd_state_auto();
+}
+
+
+void _beads::calc_hyd_state
+// --------------------------------------------------------------------
+//
+// Function: 
+// 
+(
+	_beads 	&o_beads_0
+)
+// --------------------------------------------------------------------
+{
+	init_hyd_state();
+	calc_hyd_state_auto();
+	calc_hyd_state_cross(o_beads_0, 0);
+}
 
 void _beads::output_asc
 // --------------------------------------------------------------------
@@ -1903,7 +1911,7 @@ void _beads::output_asc
 		if( hyd_inv_id[i] == -1){
 			fprintf( f_out, "%d\n", -1 );
 		}else{
-			fprintf( f_out, "%d\n", pair_fg[hyd_inv_id[i]] );
+			fprintf( f_out, "%d\n", hyd_state[hyd_inv_id[i]] );
 		}
 	}
 
@@ -1914,10 +1922,67 @@ void _beads::output_asc
 	}
 
 	fclose(f_out);
-	return;
 }
 
 
+
+void _beads::output_adj
+// --------------------------------------------------------------------
+//
+// Function: 
+// 
+(
+	const char 	*ofs_name_in
+)
+// --------------------------------------------------------------------
+{
+	char ofs_name[128];
+	sprintf( ofs_name, "%s_adj.txt", ofs_name_in );
+
+	FILE *f_out;
+	f_out = fopen( ofs_name, "w" );
+	if( f_out == NULL ){
+		std::cout << "\x1b[31m" << 
+		"ERROR: cannot open " << ofs_name <<"\x1b[349" << std::endl;
+		exit(1);
+	}
+
+	// auto matrix
+	fprintf( f_out, "auto: (%lu, %lu)\n", hyd.size(), hyd.size() );
+
+	for( int i=0; i<hyd.size(); i++ ){
+		for( int j=i+1; j<hyd.size(); j++ ){
+			int id = i*(hyd.size()-1) - (i*(i-1))/2 + (j-i-1);
+			// fprintf( f_out, "%d ", static_cast<int>(hyd_adj[id]) );
+			if( hyd_adj[id] ) fprintf( f_out, "%d %d\n", i, j );
+		}
+		// fprintf( f_out, "\n" );
+	}
+
+	// cross matrix
+	for( int k=0; k<hyd_adj_cross.size(); k++ ){
+		int o_beads_size = (int)((hyd_adj_cross[k].size() + 0.001) / hyd.size());
+		fprintf( f_out, "\n" );
+		fprintf( f_out, "cross %d: (%lu, %d)\n", k, hyd.size(), o_beads_size );
+
+		for( int i=0; i<hyd.size(); i++ ){
+			for( int j=0; j<o_beads_size; j++ ){
+				int id = i*o_beads_size + j;
+				// fprintf( f_out, "%d ", static_cast<int>(hyd_adj_cross[k][id]) );
+				if( hyd_adj_cross[k][id] ) fprintf( f_out, "%d %d\n", i, j );
+			}
+			// fprintf( f_out, "\n" );
+		}
+	}
+
+	// // free memory since it is too large
+	// hyd_adj.shrink_to_fit();
+	// for( int i=0; i<hyd_adj_cross.size(); i++ ){
+	// 	hyd_adj_cross[i].shrink_to_fit();
+	// }
+
+	fclose(f_out);
+}
 
 void _beads::output_bin
 // --------------------------------------------------------------------
@@ -1997,12 +2062,11 @@ void _beads::output_bin
 			SwapEnd(tmp);
 			f_out.write((char*)&tmp, sizeof(int));
 		}else{
-			int tmp = pair_fg[hyd_inv_id[i]];
+			int tmp = hyd_state[hyd_inv_id[i]];
 			SwapEnd(tmp);
 			f_out.write((char*)&tmp, sizeof(int));
 		}
 	}
-
 
 	/* force output is in the unit of pN */
 	f_out << "VECTORS frc float" 			<< std::endl;
@@ -2014,8 +2078,6 @@ void _beads::output_bin
 		f_out.write((char*)&tmp_y, sizeof(float));
 		f_out.write((char*)&tmp_z, sizeof(float));
 	}
-
-	return;
 }
 
 
@@ -2029,8 +2091,8 @@ void _beads::output
 )
 // --------------------------------------------------------------------
 {
-	// _beads::output_bin(ofs_name_in);
-	_beads::output_asc(ofs_name_in);
+	_beads::output_bin(ofs_name_in);
+	_beads::output_adj(ofs_name_in);
 }
 
 

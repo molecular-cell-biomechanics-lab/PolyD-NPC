@@ -1,0 +1,5 @@
+/* fgnup.txt */
+k_tens = 100.0 		// spring constant for tensil force 				{kBT_0/segm2}
+r_tens = ---		// natural length between neighboring beads			(nm)
+l_kuhn = 1.0		// Kuhn length of FG-Nups 							{segm}
+k_bend = ---		// spring constant for bending 						(g nm2 /ns2)	

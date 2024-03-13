@@ -1,0 +1,16 @@
+# vtk DataFile Version 2.0
+pos: nm, frc: pN, trq: pN*nm
+ASCII
+DATASET POLYDATA
+POINTS 1 float
+0.405262 -0.880806 -20.056532
+VERTICES 1 2
+1 0
+POINT_DATA 1
+SCALARS state int
+LOOKUP_TABLE default
+118
+VECTORS frc float
+0.000000 0.000000 0.000000
+VECTORS trq float
+0.000000 0.000000 0.000000

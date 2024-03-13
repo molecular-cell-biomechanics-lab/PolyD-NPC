@@ -1,0 +1,2 @@
+/* cargo.txt */
+R_cargo = 1.0 		// radius of the cargo		(nm)

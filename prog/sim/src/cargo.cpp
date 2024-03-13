@@ -86,7 +86,7 @@ void _cargo::set_beads_asc
 	for( int i=0; i<N_bead; i++ ){
 		std::getline(ifs, str); std::sscanf( str.data(), "%d", &tmp_i );
 		if( hyd_inv_id[i] != -1 ){
-			pair_fg.push_back(tmp_i);
+			hyd_state.push_back(tmp_i);
 		}
 	}
 
@@ -163,7 +163,7 @@ void _cargo::set_beads_asc_vtx
 	for( int i=0; i<N_bead; i++ ){
 		std::getline(ifs, str); std::sscanf( str.data(), "%d", &tmp_i );
 		if( hyd_inv_id[i] != -1 ){
-			pair_fg.push_back(tmp_i);
+			hyd_state.push_back(tmp_i);
 		}
 	}
 
@@ -250,7 +250,7 @@ void _cargo::set_beads_bin
 	for( int i=0; i<N_bead; i++ ){
 		ifs.read((char *) &tmp_i, sizeof(int)); SwapEnd(tmp_i);
 		if( hyd_inv_id[i] != -1 ){
-			pair_fg.push_back(tmp_i);
+			hyd_state.push_back(tmp_i);
 		}
 	}
 
@@ -1153,7 +1153,7 @@ void _cargo::output_asc
 		if( hyd_inv_id[i] == -1){
 			fprintf( f_out, "%d\n", -1 );
 		}else{
-			fprintf( f_out, "%d\n", pair_fg[hyd_inv_id[i]] );
+			fprintf( f_out, "%d\n", hyd_state[hyd_inv_id[i]] );
 		}
 	}
 
@@ -1219,7 +1219,7 @@ void _cargo::output_asc_vtx
 		if( hyd_inv_id[i] == -1){
 			fprintf( f_out, "%d\n", -1 );
 		}else{
-			fprintf( f_out, "%d\n", pair_fg[hyd_inv_id[i]] );
+			fprintf( f_out, "%d\n", hyd_state[hyd_inv_id[i]] );
 		}
 	}
 
@@ -1307,7 +1307,7 @@ void _cargo::output_bin
 			SwapEnd(tmp);
 			fout.write((char*)&tmp, sizeof(int));
 		}else{
-			int tmp = pair_fg[hyd_inv_id[i]];
+			int tmp = hyd_state[hyd_inv_id[i]];
 			SwapEnd(tmp);
 			fout.write((char*)&tmp, sizeof(int));
 		}
@@ -1339,7 +1339,8 @@ int _cargo::count_state
 {
 	int count = 0;
 	for( int i=0; i<hyd.size(); i++ ){
-		if( pair_fg[i] != -1 ) count++;
+		count += hyd_state[i];
+		// if( pair_fg[i] != -1 ) count++;
 	}
 	return count;
 }

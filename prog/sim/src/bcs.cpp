@@ -62,6 +62,17 @@ void _bcs::bounce_on_wall
 			}
 		}
 
+
+		// reflecting boundary on the top and bottom z
+		if( z < cy_btm - L_z ){
+			double force = frc_w_const;
+			beads->frc[i].z += force;
+		}else if( z > cy_top + L_z ){
+			double force = -frc_w_const;
+			beads->frc[i].z += force;
+		}
+
+
 		// if( r_dist < cut_wall ){
 		// 	if( z > cy_btm && z < cy_top ){
 		// 		double force = -frc_w_const;
@@ -79,7 +90,6 @@ void _bcs::bounce_on_wall
 		// }
 
 	}
-	return;
 }
 
 
@@ -95,7 +105,6 @@ void _bcs::calc_force_wall
 // --------------------------------------------------------------------
 {
 	bounce_on_wall( beads );
-	return;
 }
 
 
@@ -146,13 +155,12 @@ void _bcs::move_at_boundary
 			beads->pos[i].y -= length_y;
 		}
 		// z --------------------------
-		if( z < cy_btm - L_z ){
-			beads->pos[i].z += length_z;
-		}else if( z > cy_top + L_z ){
-			beads->pos[i].z -= length_z;
-		}
+		// if( z < cy_btm - L_z ){
+		// 	beads->pos[i].z += length_z;
+		// }else if( z > cy_top + L_z ){
+		// 	beads->pos[i].z -= length_z;
+		// }
 	}
-	return;
 }
 
 
@@ -185,8 +193,6 @@ void _bcs::move_at_boundary
 		cargo->center.y -= length_y;
 		cargo->update_pos();
 	}
-
-	return;
 }
 
 // void _bcs::init
@@ -217,18 +223,17 @@ void _bcs::calc_static
 	_beads tmp;
 	// beads->get_vars_rp( &eps_rp, &sgm_rp, &cut_rp );
 	tmp.get_vars_rp( &eps_rp, &sgm_rp, &cut_rp );
-	cut_wall = cut_rp / 2;
+	cut_wall = cut_rp / 2.0;
 	frc_w_const = eps_rp / sgm_rp;
 	// copy_width_z = beads->get_cut_list();
 	copy_width = tmp.get_cut_list();
-	length_x = 2*L_x;
-	length_y = 2*L_y;
-	length_z = cy_top - cy_btm + 2*L_z;
+	length_x = 2.0*L_x;
+	length_y = 2.0*L_y;
+	length_z = cy_top - cy_btm + 2.0*L_z;
 
 	thre_dist_x = length_x - 2.0*copy_width;
 	thre_dist_y = length_y - 2.0*copy_width;
 	thre_dist_z = length_z - 2.0*copy_width;
-	return;
 }
 
 
@@ -241,14 +246,12 @@ void _bcs::read_vars
 )
 // --------------------------------------------------------------------
 {
-
 	char ifs_name[64];
 	sprintf( ifs_name, "%s/%s", PATH_INPUT, "bcs.txt" );
 	std::ifstream ifs(ifs_name);
 	std::string str;
 
 	if(ifs.fail()){ std::cerr << ifs_name << " do not exist\n"; exit(0); }
-
 
 	std::getline(ifs, str); // skip 1 line
 	std::getline(ifs, str); std::sscanf( str.data(), "R_pore = %lf", &(this->R_pore) );
@@ -257,8 +260,6 @@ void _bcs::read_vars
 	std::getline(ifs, str); std::sscanf( str.data(), "L_x    = %lf", &(this->L_x   ) );
 	std::getline(ifs, str); std::sscanf( str.data(), "L_y    = %lf", &(this->L_y   ) );
 	std::getline(ifs, str); std::sscanf( str.data(), "L_z    = %lf", &(this->L_z   ) );
-
-	return;
 }
 
 
@@ -306,7 +307,6 @@ void _bcs::display_vars
 )
 // --------------------------------------------------------------------
 {
-
     std::cout << "\x1b[34m"	 << std::endl;
 
 	std::cout << "R_pore = " << this->R_pore << std::endl;
@@ -317,8 +317,6 @@ void _bcs::display_vars
 	std::cout << "L_z    = " << this->L_z    << std::endl;
 	
     std::cout << "\x1b[39m"	<< std::endl;
-    return;
-
 }
 
 
