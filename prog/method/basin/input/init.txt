@@ -1,0 +1,8 @@
+/* init.txt */
+D_por = 40
+leng  = 0
+R_car = 1
+p_hyd = 0
+kuhn  = 1
+k_on  = 1e-1
+k_of  = 1e-2

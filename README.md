@@ -8,7 +8,7 @@ by **Atsushi Matsuda** and **Mohammad R. K. Mofrad**.
 ## **Simulation Code**
 - The **main simulation code** is located in:  
 ```markdown
-	prog/sim
+prog/sim
 ```
 
 Please refer to the README in this directory for instructions on how to **compile and run the code**.
@@ -18,11 +18,11 @@ The study implements advanced computational methods located in the following dir
 
 - **First flux calculation**:  
 ```markdown
-	prog/method/basin
+prog/method/basin
 ```
 
 - **Forward flux sampling (FFS)**:  
 ```markdown
-	prog/method/ffs
+prog/method/ffs
 ```
 Each method has its own **README** file with detailed usage instructions.
