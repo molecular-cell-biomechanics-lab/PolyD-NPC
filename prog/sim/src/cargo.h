@@ -98,7 +98,6 @@ public:
 
 	void set_beads_asc( const char *ifs_name );
 	void set_beads_bin( const char *ifs_name );
-	void set_beads_asc_vtx( const char *ifs_name );
 
 	// void make_list_cross_fg( _bcs &bcs, _beads &o_beads, int cross_id );
 	// void make_list_cross_fg( _bcs &bcs, _grid &grid, _beads &o_beads, int cross_id );
@@ -130,7 +129,6 @@ public:
 	void output_asc(const char *ofs_name);
 	void output_bin(const char *ofs_name);
 	void output_ctr(const char *ofs_name);
-	void output_asc_vtx(const char *ofs_name);
 
 	// bool find_elem_cargo( int cross_id, int elm );
 

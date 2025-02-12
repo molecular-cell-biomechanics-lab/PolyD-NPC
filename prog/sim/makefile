@@ -1,26 +1,42 @@
 # CC    	= g++-11
 CC    	= g++
-# CFLAGS 	= -std=c++11 -O2 -g -fsanitize=address
-CFLAGS 	= -std=c++11 -O2
-LDFLAGS = ${CFLAGS}
-
+# CC    	= icc
+# OPT 	= -std=c++11 -O2 -pg
+OPT 	= -std=c++11 -O2 
+# OPT 	= -std=c++11 -O2 -g
+# OPT 	= -std=c++11 -O3 -flto -pg
+# OPT 	= -std=c++11 -O3 -flto -openmp
+# OPT 	= -std=c++11 -O3 -mtune=native -march=native
+# OPT 	= -std=c++11 -Ofast -mtune=native -march=native
+# OPT = -std=c++11 -fopenmp -O2 -lm
 PROG  	= a.out
-# PROG  	= cont.out
-VPATH 	= src
-INCDIR 	= src inc
+VPATH 	= src 
+INCDIR 	= inc src
 IPATH   = $(INCDIR:%=-I%)
-OBJS  	= main.o beads.o fgnup.o bcs.o grid.o cargo.o sys.o
-# OBJS  	= cont.o beads.o fgnup.o bcs.o grid.o cargo.o sys.o 
+# OBJS  	= main.o vars.o
+OBJS  	= main.o beads.o fgnup.o bcs.o grid.o cargo.o
 
 all 	: ${PROG}
 
 ${PROG}	: ${OBJS}
-	${CC} -o $@ ${OBJS} ${LDFLAGS}
+	${CC} -o $@ ${OBJS} ${OPT}
+
+# %.o 	: %.cpp
+# 	${CC} -c $< ${OPT}
 
 .SUFFIXES: .cpp .o
 
 .cpp.o:
-	$(CC) -c $< ${IPATH} ${CFLAGS}
+	$(CC) -c $< ${OPT} ${IPATH}
+
+
+# main.o 		: main.cpp
+# # vars.o 	: vars.cpp vars.h
+# beads.o 	: beads.cpp beads.h
+# fgnup.o 	: fgnup.cpp fgnup.h
+# cargo.o 	: cargo.cpp cargo.h
+# bcs.o 		: bcs.cpp 	bcs.h
+# grid.o 		: grid.cpp  grid.h
 
 
 clean 	: 

@@ -12,7 +12,7 @@
 #include "beads.h"
 
 
-// #define NUP_SIZE 80
+#define NUP_SIZE 80
 #define SHIFT_SEED_F 2000000
 
 class _fgnup : public _beads
@@ -21,7 +21,6 @@ private:
 	std::vector<std::pair <int,int>     > bond ;
 	std::vector<std::tuple<int,int,int> > angle;
 	std::vector<int> teth;  // 0: non-tethered, 1: tethered
-	int 	nup_size;
 
 public:
 	/* tension		*/
@@ -32,7 +31,7 @@ public:
 	double 	l_kuhn 	;		// Kuhn length of FG-Nups 							{segm}
 	double 	k_bend	;		// spring constant for bending 						(g nm2 /ns2)
 
-	int 	seed;
+	int 		seed;
 
 	 _fgnup();
 	 // _fgnup( int seed ):_beads( seed );
@@ -55,7 +54,7 @@ public:
 	void output_asc( const char *ofs_name );
 	void output_bin( const char *ofs_name );
 
-// private:
+private:
 	void read_vars();
 	void calc_vars();
 	void display_vars();

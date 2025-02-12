@@ -156,7 +156,7 @@ void _fgnup::set_beads_asc
 	// for( int i=0; i<N_pol; i++ ) std::getline(ifs, str); // skip N_pol lines
 
 	std::getline(ifs, str); std::sscanf( str.data(), "LINES %d %d", &N_pol, &dum );
-	nup_size = N_pol;
+	if( N_bead == 0 ) N_pol = 0; //20230126
 	for( int i=0; i<N_pol; i++ ){
 		std::getline(ifs, str);
 		std::istringstream stream(str);
@@ -196,7 +196,7 @@ void _fgnup::set_beads_asc
 	for( int i=0; i<N_bead; i++ ){
 		std::getline(ifs, str); std::sscanf( str.data(), "%d", &tmp_i );
 		if( hyd_inv_id[i] != -1 ){
-			hyd_state.push_back(tmp_i);
+			pair_fg.push_back(tmp_i);
 		}
 	}
 
@@ -207,6 +207,8 @@ void _fgnup::set_beads_asc
 
 	_beads::init_pair();
 	// std::cout << "finished setting " << pos.size() << " beads from " << ifs_name << std::endl;
+
+	return;
 }
 
 
@@ -259,7 +261,7 @@ void _fgnup::set_beads_bin
 	// }
 
 	std::getline(ifs, str); std::sscanf( str.data(), "LINES %d %d", &N_pol, &dum );
-	nup_size = N_pol;
+	if( N_bead == 0 ) N_pol = 0; //20230126
 	for( int i=0; i<N_pol; i++ ){
 		ifs.read((char *) &bd_per_pol, 	sizeof(int)); SwapEnd(bd_per_pol);
 
@@ -297,7 +299,7 @@ void _fgnup::set_beads_bin
 	for( int i=0; i<N_bead; i++ ){
 		ifs.read((char *) &tmp_i, sizeof(int)); SwapEnd(tmp_i);
 		if( hyd_inv_id[i] != -1 ){
-			hyd_state.push_back(tmp_i);
+			pair_fg.push_back(tmp_i);
 		}
 	}
 
@@ -329,8 +331,8 @@ void _fgnup::set_beads
 )
 // --------------------------------------------------------------------
 {
-	// _fgnup::set_beads_bin(ifs_name);
-	_fgnup::set_beads_asc(ifs_name);
+	_fgnup::set_beads_bin(ifs_name);
+	// _fgnup::set_beads_asc(ifs_name);
 	return;
 }
 
@@ -532,7 +534,6 @@ void _fgnup::calc_force_bond
 		bcs.adjust_periodic(&dr);
 		double dist     = dr.norm();
 		double force    = -k_tens * (dist - r_tens);
-		// if( k == 0 ) std::cout << r_tens << " " << dist - r_tens << " " << force << std::endl;
 		_vec<double> df = (force/dist) * dr;
 		// frc[i].x += df.x;
 		// frc[i].y += df.y;
@@ -622,6 +623,7 @@ void _fgnup::calc_force_angle
 		frc[i] -= f_prev;
 		frc[k] -= f_next;
 	}
+	return;
 }
 
 void _fgnup::calc_force
@@ -636,6 +638,7 @@ void _fgnup::calc_force
 	_beads::calc_force();
 	_fgnup::calc_force_bond();
 	_fgnup::calc_force_angle();
+	return;
 }
 
 
@@ -652,6 +655,7 @@ void _fgnup::calc_force
 	_beads::calc_force(bcs);
 	_fgnup::calc_force_bond(bcs);
 	_fgnup::calc_force_angle(bcs);
+	return;
 }
 
 
@@ -666,9 +670,10 @@ void _fgnup::calc_force
 )
 // --------------------------------------------------------------------
 {
-	_beads::calc_force(bcs, beads_0);
+	_beads::calc_force( bcs, beads_0 );
 	_fgnup::calc_force_bond(bcs);
 	_fgnup::calc_force_angle(bcs);
+	return;
 }
 
 
@@ -750,12 +755,15 @@ void _fgnup::move
 )
 // --------------------------------------------------------------------
 {
+
 	for( int i=0; i<pos.size(); i++ ){
 		if( teth[i]== 1 ) continue; // tetehred bead does not move
 		pos[i].x = pos[i].x + coeff_ex * frc[i].x + rand_std * f_unif(f_mt);
 		pos[i].y = pos[i].y + coeff_ex * frc[i].y + rand_std * f_unif(f_mt);
 		pos[i].z = pos[i].z + coeff_ex * frc[i].z + rand_std * f_unif(f_mt);
 	}
+
+	return;
 }
 
 
@@ -769,6 +777,7 @@ void _fgnup::move
 )
 // --------------------------------------------------------------------
 {
+
 	for( int i=0; i<pos.size(); i++ ){
 		if( teth[i]== 1 ) continue; // tetehred bead does not move
 		pos[i].x = pos[i].x + coeff_ex * frc[i].x + rand_std * f_unif(f_mt); 
@@ -776,11 +785,9 @@ void _fgnup::move
 		pos[i].z = pos[i].z + coeff_ex * frc[i].z + rand_std * f_unif(f_mt); 
 	}
 
-// std::cout << coeff_ex << std::endl;
-// std::cout << rand_std << std::endl;
-// exit(1);
-
 	bcs.move_at_boundary(this);
+
+	return;
 }
 
 
@@ -815,10 +822,10 @@ void _fgnup::output_asc
 	}
 
 	int count = 0;
-	fprintf( f_out, "LINES %d %lu\n", nup_size, pos.size()+nup_size );
-	for( int i=0; i<nup_size; i++ ){
-		fprintf( f_out, "%lu ", pos.size()/nup_size );
-		for( int j=0; j<pos.size()/nup_size; j++ ){
+	fprintf( f_out, "LINES %d %lu\n", NUP_SIZE, pos.size()+NUP_SIZE );
+	for( int i=0; i<NUP_SIZE; i++ ){
+		fprintf( f_out, "%lu ", pos.size()/NUP_SIZE );
+		for( int j=0; j<pos.size()/NUP_SIZE; j++ ){
 			fprintf( f_out, "%d ", count );
 			count ++;
 		}
@@ -842,7 +849,7 @@ void _fgnup::output_asc
 		if( hyd_inv_id[i] == -1){
 			fprintf( f_out, "%d\n", -1 );
 		}else{
-			fprintf( f_out, "%d\n", hyd_state[hyd_inv_id[i]] );
+			fprintf( f_out, "%d\n", pair_fg[hyd_inv_id[i]] );
 		}
 	}
 
@@ -853,6 +860,7 @@ void _fgnup::output_asc
 	}
 
 	fclose(f_out);
+	return;
 }
 
 
@@ -893,12 +901,12 @@ void _fgnup::output_bin
 		f_out.write((char*)&tmp_z, sizeof(float));
 	}
 
-	f_out << "LINES " << nup_size << " " << pos.size() + nup_size <<std::endl;
+	f_out << "LINES " << NUP_SIZE << " " << pos.size() + NUP_SIZE <<std::endl;
 	int count = 0;
-	for( int i=0; i<nup_size; i++ ){
-		int len = pos.size()/nup_size; SwapEnd(len);
+	for( int i=0; i<NUP_SIZE; i++ ){
+		int len = pos.size()/NUP_SIZE; SwapEnd(len);
 		f_out.write((char*)&len, sizeof(int));
-		for( int j=0; j<pos.size()/nup_size; j++ ){
+		for( int j=0; j<pos.size()/NUP_SIZE; j++ ){
 			int tmp_i = count; SwapEnd(tmp_i);
 			f_out.write((char*)&tmp_i, sizeof(int));
 			count ++;
@@ -929,7 +937,7 @@ void _fgnup::output_bin
 			SwapEnd(tmp);
 			f_out.write((char*)&tmp, sizeof(int));
 		}else{
-			int tmp = hyd_state[hyd_inv_id[i]];
+			int tmp = pair_fg[hyd_inv_id[i]];
 			SwapEnd(tmp);
 			f_out.write((char*)&tmp, sizeof(int));
 		}
@@ -945,6 +953,8 @@ void _fgnup::output_bin
 		f_out.write((char*)&tmp_y, sizeof(float));
 		f_out.write((char*)&tmp_z, sizeof(float));
 	}
+
+	return;
 }
 
 
@@ -958,8 +968,8 @@ void _fgnup::output
 )
 // --------------------------------------------------------------------
 {
-	_fgnup::output_asc(ofs_name_in);
-	// _fgnup::output_bin(ofs_name_in);
-	_beads::output_adj(ofs_name_in);
+	// _fgnup::output_asc(ofs_name_in);
+	_fgnup::output_bin(ofs_name_in);
+	return;
 }
 
