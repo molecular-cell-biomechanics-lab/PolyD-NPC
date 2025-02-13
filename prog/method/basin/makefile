@@ -6,8 +6,8 @@ CFLAGS 	= -std=c++11 -O2
 LDFLAGS = ${CFLAGS}
 
 PROG  	= a.out
-VPATH 	= ../sim/src ../sim/inc ../ffs/src
-INCDIR 	= ../sim/src ../sim/inc ../ffs/src
+VPATH 	= ../../sim/src ../../sim/inc ../ffs/src
+INCDIR 	= ../../sim/src ../../sim/inc ../ffs/src
 IPATH   = $(INCDIR:%=-I%)
 OBJS  	= main.o beads.o fgnup.o bcs.o grid.o cargo.o sys.o param.o
 

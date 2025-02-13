@@ -1,24 +1,33 @@
-bd_v3.4.2/basin
+# **Basin Simulation**  
 
-log:
-03/06/2023
-- minor: added temperature input
+This program calculates the **first flux** of molecular diffusion into the nuclear pore complex (NPC). The simulation is built upon the core code located in `prog/sim`.  
 
-02/07/2023
-- minor: cargo radius input as a real number
+## **Compilation**  
+To compile the program, run:  
+```bash
+make
+```
 
-10/26/2022
-- starting position is CG_INIT_Z = -50
-- condition to be "inside" the interface is _____
+## **Running the Simulation**  
+Execute the following command to run the simulation:  
+```bash
+./a.out
+```
 
-10/25/2022
-- transplanted from bd_v3.3
 
-09/06/2022
-- transplanted from bd_v3
-- increased the starting position (INIT_SHIFT)
+## **Input Files**  
+The program requires the following input files:  
+- **Cargo coordinates**: `input/cargo.vtk`  
+- **FG-Nups coordinates**: `input/fgnup.vtk`  
 
-08/27/2022
-- TOTAL_STEP 20 us -> 40 us
-- EQ_STEP_BS 0.1 us -> 1 us
-- added trajectory output
+## **Output Files**  
+The simulation generates the following output files:  
+
+- **Cargo at pore entrance**: `output/cg_***.vtk`  
+- **FG-Nups at pore entrance**: `output/fg_***.vtk`  
+- **Cargo trajectory throughout the simulation**: `traj/cg_***.vtk`  
+- **FG-Nups trajectory throughout the simulation**: `traj/fg_***.vtk`  
+
+The `***` in file names represents simulation-specific identifiers.  
+
+

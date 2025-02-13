@@ -18,9 +18,6 @@
 
 #include "param.h"
 #include "sys.h"
-// #include "sim.h"
-
-// rule: always small to large
 
 #define PATH_CONFIG "input"
 #define PATH_BCS    "input"
@@ -47,17 +44,9 @@
 
 #define OUT_STEP 	5000 		// 0.1 us
 #define LIST_STEP 	100
-// #define TOTAL_STEP 	2000000		// 40 us
 #define TOTAL_STEP 	5000000		// 100 us
 #define EQ_STEP_BS  50000		// 1  us
 #define TRAJ_OUT 	50000 		// 1  us
-
-// //DEBUG
-// #define OUT_STEP 	500 	
-// #define LIST_STEP 	100
-// #define TOTAL_STEP 	2000000		// 40 us
-// #define EQ_STEP_BS  500	
-// #define TRAJ_OUT 	5000
 
 
 void convertToIntegers(double input, int &intPart, int &decimalPart) {
@@ -278,9 +267,7 @@ void basin_sim
 	double  rpore_2 = bcs.R_pore * bcs.R_pore;
 	_vec<double> prev_pos = cargo.center;
 
-	// while( count < param.N_strt ){
 	while( step < TOTAL_STEP ){
-	// while(1){
 
 		if( step%LIST_STEP == 0 ){
 			sys_2::make_list(cargo,fgnup,grid,bcs);
@@ -288,8 +275,6 @@ void basin_sim
 		sys_2::calc_force(cargo,fgnup,grid,bcs);
 		// cargo.frc[0].z += 10*KBT_0; // DEBUG
 		sys_2::move 	 (cargo,fgnup,grid,bcs);
-
-		// std::cout << step << std::endl;
 
 		if( step%OUT_STEP == 0 ){
 			
@@ -321,10 +306,7 @@ void basin_sim
 	double time = step * fgnup.t_delt;
 	double flux = count / time;
 
-	// std::cout << "seed: " << seed << ", flux = " << flux << " (/ns)" << std::endl;
 	std::cout << "seed: " << seed << ", count = " << count << ", flux = " << flux << " (/ns)" << std::endl;
-	// std::cout << "seed: " << seed << "\ttime: " << time << " (ns)" << std::endl;
-	// std::cout << "basin_sim finished" << std::endl;
 
 	return;
 }
