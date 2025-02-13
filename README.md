@@ -8,7 +8,7 @@ This repository contains the simulation code used in the study:
 - The **main simulation code** is located in:  
 `prog/sim`
 
-Please refer to the README in this directory for instructions on how to **compile and run the code**.
+Please refer to the README in this directory for instructions on how to compile and run the code.
 
 ## **Advanced Methods**
 The study implements advanced computational methods located in the following directories:
@@ -18,4 +18,5 @@ The study implements advanced computational methods located in the following dir
 
 - **Forward flux sampling (FFS)**:  
 `prog/method/ffs`
-Each method has its own **README** file with detailed usage instructions.
+
+Each method has its own README file with detailed usage instructions.
