@@ -205,7 +205,8 @@ void read_config
 {
 	char file[128];
 	
-	sprintf(file, "%s/cargo_r%02d_%dp%02d.vtk", PATH_BCS, r_int, r_dec, p_hyd );
+	// sprintf(file, "%s/cargo_r%02d_%dp%02d.vtk", PATH_BCS, r_int, r_dec, p_hyd );
+	sprintf(file, "%s/cargo.vtk");
 	cargo.set_beads(file, CG_INIT_X, CG_INIT_Y, CG_INIT_Z - INIT_SHIFT);
 
 	// if( leng == 0 ){
@@ -213,7 +214,8 @@ void read_config
 	// }else{
 	// 	sprintf(file, "%s/fgnup_equiv_p%02d_l%03d_b%d_k%s_k%s.vtk", PATH_BCS, D_por, leng, kuhn, k_on, k_of );		
 	// }
-	sprintf(file, "%s/fgnup_equiv_p%02d_l%03d_b%d_k%s_k%s_t%04d.vtk", PATH_BCS, D_por, leng, kuhn, k_on, k_of, t_int );
+	// sprintf(file, "%s/fgnup_equiv_p%02d_l%03d_b%d_k%s_k%s_t%04d.vtk", PATH_BCS, D_por, leng, kuhn, k_on, k_of, t_int );
+	sprintf(file, "%s/fgnup.vtk");
 	fgnup.set_beads(file);
 
 	double dz = (double)INIT_SHIFT / N_INIT_DIV;
